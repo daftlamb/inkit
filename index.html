@@ -681,12 +681,12 @@ function build3D(forceResolution) {
       const strengthMult = parseFloat(document.getElementById('strength').value) / 100;
       for (let i = 0; i < smoothPts.length; i++) {
         let px = smoothPts[i].x, py = smoothPts[i].y, pz = smoothPts[i].z;
-        // Apply rotation around Y axis for symmetry copies
+        // Apply rotation around Z axis for symmetry copies
         if (copy.angle !== 0) {
           const cos = Math.cos(copy.angle), sin = Math.sin(copy.angle);
-          const rx = px * cos - pz * sin;
-          const rz = px * sin + pz * cos;
-          px = rx; pz = rz;
+          const rx = px * cos - py * sin;
+          const ry = px * sin + py * cos;
+          px = rx; py = ry;
         }
         const x = px + 0.5, y = py + 0.5, z = pz + 0.5;
         if (x < 0.01 || x > 0.99 || y < 0.01 || y > 0.99 || z < 0.01 || z > 0.99) continue;
