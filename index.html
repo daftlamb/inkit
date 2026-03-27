@@ -535,6 +535,9 @@ function build3D() {
     }
   }
 
+  console.log('MarchingCubes: added blobs, calling update()');
+  mcEffect.update();
+
   sculpture = mcEffect;
   scene.add(sculpture);
 
