@@ -104,8 +104,8 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
       </div>
       <div class="ctrl">
         <label>Turbulence</label>
-        <input type="range" id="turbulence" min="0" max="20" value="5"/>
-        <span id="turb-val">5</span>
+        <input type="range" id="turbulence" min="0" max="20" value="2"/>
+        <span id="turb-val">2</span>
       </div>
       <div class="ctrl">
         <label>Tube r</label>
@@ -278,15 +278,14 @@ function startDraw(e) {
 }
 
 function startPool(x, y) {
-  // Ink pools only at the still point — does NOT affect poolW for later movement
+  // Ink pools ONLY at this point — grows independently
   clearTimeout(poolTimer);
   const bs = parseFloat(document.getElementById('brush-size').value);
   const maxPool = bs * 4;
-  let localW = bs; // local pooling width, separate from global poolW
+  let localW = currentStroke.length ? currentStroke[currentStroke.length - 1].w : bs;
   function grow() {
     if (!isDrawing) return;
-    localW = Math.min(localW + bs * 0.15, maxPool);
-    // Replace last pool point instead of appending to avoid bloating stroke
+    localW = Math.min(localW + bs * 0.18, maxPool);
     currentStroke.push({ x, y, w: localW });
     redrawAll();
     poolTimer = setTimeout(grow, 40);
@@ -307,17 +306,18 @@ function moveDraw(e) {
     return;
   }
 
-  // Mouse moved — stop pooling, reset poolW back to normal brush size
+  // Mouse moved — stop pooling, reset to normal brush size
   clearTimeout(poolTimer);
   const bs = parseFloat(document.getElementById('brush-size').value);
-  // Reset pool width so movement after a pool doesn't inherit the big size
-  poolW = Math.min(poolW, bs * 1.3);
-
   const speed = dist / dt; // px/ms
   const targetW = Math.max(1.5, bs * (1.2 - Math.min(speed * 0.2, 1.0)));
-  poolW = poolW * 0.5 + targetW * 0.5; // faster decay back to normal
+  // Reset poolW to brush size, then lerp toward speed-based width
+  poolW = bs * 0.7 + targetW * 0.3;
 
   currentStroke.push({ x: pos.x, y: pos.y, w: poolW });
+  lastX = pos.x; lastY = pos.y; lastT = now;
+  redrawAll();
+}
   lastX = pos.x; lastY = pos.y; lastT = now;
   redrawAll();
 }
@@ -466,11 +466,9 @@ function build3D() {
       }[currentMat] || { metalness: 0.9, roughness: 0.1 };
       const tubeMat = new THREE.MeshStandardMaterial({ color, ...matParams });
 
-      // Build variable-radius tube: split stroke into segments by width
-      // Each segment's radius = point.w (brush width) mapped to world scale
+      // Build variable-radius tube: fewer segments, higher quality per segment
       const segGroup = new THREE.Group();
-      const minPts = 3;
-      const step = Math.max(1, Math.floor(pts.length / 60)); // max 60 segments
+      const step = Math.max(3, Math.floor(pts.length / 20)); // max 20 segments
       for (let si = 0; si < copyPts.length - step; si += step) {
         const end = Math.min(si + step + 1, copyPts.length);
         const segPts = copyPts.slice(si, end);
@@ -480,10 +478,10 @@ function build3D() {
         const r = Math.max(0.005, avgW * scale * 0.5); // brush w → world radius
         const tubeSeg = new THREE.TubeGeometry(
           new THREE.CatmullRomCurve3(segPts),
-          Math.max(4, Math.floor(step * 1.5)),
+          Math.max(12, Math.floor(step * 2)), // higher tubular segments
           r,
-          16,  // high radial segments for smooth circle
-          false
+          20,  // higher radial segments for smoother surface
+          true // close tube ends
         );
         segGroup.add(new THREE.Mesh(tubeSeg, tubeMat));
       }
