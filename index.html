@@ -93,6 +93,13 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
   </label>
   <div class="sep"></div>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="render-mode" id="rmode-blob" checked/> Blob
+  </label>
+  <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="render-mode" id="rmode-extrude"/> Extrude
+  </label>
+  <div class="sep"></div>
+  <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="radio" name="draw-mode" id="mode-brush" checked/> Brush
   </label>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
@@ -655,6 +662,86 @@ function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
 }
 
 function build3D(forceResolution) {
+  if (document.getElementById('rmode-extrude')?.checked) {
+    buildExtrude();
+    return;
+  }
+  buildBlob(forceResolution);
+}
+
+// ─── EXTRUDE MODE ─────────────────────────────────────────────────────────────
+function buildMaterial(color) {
+  const matParams = {
+    chrome: { metalness: 1.0, roughness: 0.0,  envMapIntensity: 2.0 },
+    matte:  { metalness: 0.0, roughness: 0.85, envMapIntensity: 0.3 },
+    gold:   { metalness: 1.0, roughness: 0.15, envMapIntensity: 1.5 },
+  }[currentMat] || { metalness: 0.9, roughness: 0.1 };
+  return new THREE.MeshStandardMaterial({ color, ...matParams });
+}
+function buildExtrude() {
+  document.getElementById('hint').style.display = 'none';
+  if (sculpture) {
+    scene.remove(sculpture);
+    sculpture.traverse(c => { c.geometry?.dispose(); c.material?.dispose(); });
+    sculpture = null;
+  }
+  if (mcEffect) { mcEffect.parent && mcEffect.parent.remove(mcEffect); mcEffect = null; }
+  if (!strokes.length) return;
+
+  const cw = drawCanvas.width, ch = drawCanvas.height;
+  const color = new THREE.Color(document.getElementById('stroke-color').value);
+  const group = new THREE.Group();
+
+  for (const stroke of strokes) {
+    const allCopies = getSymmetryPoints(applyTurbulence(stroke.pts));
+    for (const pts of allCopies) {
+      if (pts.length < 2) continue;
+
+      // Build offset outline: forward side + reverse side
+      const left = [], right = [];
+      for (let i = 0; i < pts.length; i++) {
+        const prev = pts[Math.max(0, i - 1)];
+        const next = pts[Math.min(pts.length - 1, i + 1)];
+        const dx = next.x - prev.x, dy = next.y - prev.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len, ny = dx / len; // normal
+        const hw = (pts[i].w || 4) * 0.5;
+        left.push({ x: pts[i].x + nx * hw, y: pts[i].y + ny * hw });
+        right.push({ x: pts[i].x - nx * hw, y: pts[i].y - ny * hw });
+      }
+
+      // Build THREE.Shape from outline
+      const shape = new THREE.Shape();
+      // Map canvas coords to [-0.5, 0.5]
+      const mx = p => (p.x - cw / 2) / cw;
+      const my = p => -(p.y - ch / 2) / ch;
+
+      shape.moveTo(mx(left[0]), my(left[0]));
+      for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
+      for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
+      shape.closePath();
+
+      const depth = 0.04;
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth,
+        bevelEnabled: true,
+        bevelSize: 0.008,
+        bevelThickness: 0.008,
+        bevelSegments: 4,
+      });
+      geo.translate(0, 0, -depth / 2); // center Z
+
+      const mat = buildMaterial(color);
+      const mesh = new THREE.Mesh(geo, mat);
+      group.add(mesh);
+    }
+  }
+
+  scene.add(group);
+  sculpture = group;
+}
+
+function buildBlob(forceResolution) {
   document.getElementById('hint').style.display = 'none';
 
   // Clear old sculpture
@@ -670,14 +757,9 @@ function build3D(forceResolution) {
   const smoothIdx = parseInt(document.getElementById('smooth').value);
   const zSpread = parseFloat(document.getElementById('z-spread').value) / 100 * 3.0;
   const cw = drawCanvas.width, ch = drawCanvas.height;
-  const scale = parseFloat(document.getElementById('tube-radius').value) / 1000;
+    const scale = parseFloat(document.getElementById('tube-radius').value) / 1000;
 
-  const matParams = {
-    chrome: { metalness: 1.0, roughness: 0.0,  envMapIntensity: 2.0 },
-    matte:  { metalness: 0.0, roughness: 0.85, envMapIntensity: 0.3 },
-    gold:   { metalness: 1.0, roughness: 0.15, envMapIntensity: 1.5 },
-  }[currentMat] || { metalness: 0.9, roughness: 0.1 };
-  const mat = new THREE.MeshStandardMaterial({ color, ...matParams });
+  const mat = buildMaterial(color);
 
   const resolution = forceResolution || [28, 48, 72, 96, 128, 192][smoothIdx];
   mcEffect = new MarchingCubes(resolution, mat, true, true, 500000);
