@@ -86,6 +86,13 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
   <button class="act-btn" id="btn-generate">Generate 3D</button>
   <button class="act-btn" id="btn-render" style="border-color:#80d0ff;color:#80d0ff;">Render HD</button>
   <button class="act-btn" id="btn-export">Export PNG</button>
+  <div class="sep"></div>
+  <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="draw-mode" id="mode-brush" checked/> Brush
+  </label>
+  <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="draw-mode" id="mode-pen"/> Pen
+  </label>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="bloom-toggle"/> Bloom
   </label>
@@ -168,6 +175,10 @@ let lastX = 0, lastY = 0, lastT = 0;
 let autoGenTimer = null;
 let poolTimer = null;   // ink pooling timer when mouse is still
 let poolW = 0;          // current pooling width
+let drawMode = 'brush'; // 'brush' | 'pen'
+let penAnchors = [];    // [{x,y,cpIn:{x,y},cpOut:{x,y}}]
+let penDragging = null; // null | {type:'cp'|'anchor', idx, which:'in'|'out'}
+let penPreview = null;  // current mouse pos for preview segment
 
 // ─── DRAWING CANVAS ───────────────────────────────────────────────────────────
 const drawCanvas = document.getElementById('draw-canvas');
@@ -272,6 +283,7 @@ function redrawAll() {
       drawStroke(copy, 0.7);
     }
   }
+  drawPenOverlay();
 }
 
 function getPos(e) {
@@ -351,13 +363,152 @@ function endDraw(e) {
   }
 }
 
-drawCanvas.addEventListener('mousedown', startDraw);
-drawCanvas.addEventListener('mousemove', moveDraw);
-drawCanvas.addEventListener('mouseup', endDraw);
-drawCanvas.addEventListener('mouseleave', endDraw);
-drawCanvas.addEventListener('touchstart', startDraw, { passive: false });
-drawCanvas.addEventListener('touchmove', moveDraw, { passive: false });
-drawCanvas.addEventListener('touchend', endDraw);
+drawCanvas.addEventListener('mousedown', e => { drawMode === 'pen' ? penDown(e) : startDraw(e); });
+drawCanvas.addEventListener('mousemove', e => { drawMode === 'pen' ? penMove(e) : moveDraw(e); });
+drawCanvas.addEventListener('mouseup',   e => { drawMode === 'pen' ? penUp(e)   : endDraw(e); });
+drawCanvas.addEventListener('mouseleave', e => { if (drawMode !== 'pen') endDraw(e); });
+drawCanvas.addEventListener('dblclick',  e => { if (drawMode === 'pen') penCommit(); });
+drawCanvas.addEventListener('touchstart', e => { drawMode === 'pen' ? penDown(e) : startDraw(e); }, { passive: false });
+drawCanvas.addEventListener('touchmove',  e => { drawMode === 'pen' ? penMove(e) : moveDraw(e); }, { passive: false });
+drawCanvas.addEventListener('touchend',   e => { drawMode === 'pen' ? penUp(e)   : endDraw(e); });
+
+// ─── PEN (BEZIER) MODE ───────────────────────────────────────────────────────
+function penDown(e) {
+  e.preventDefault();
+  const pos = getPos(e);
+  const bs = parseFloat(document.getElementById('brush-size').value);
+
+  // Check if clicking near existing anchor or control point
+  for (let i = 0; i < penAnchors.length; i++) {
+    const a = penAnchors[i];
+    if (Math.hypot(pos.x - a.x, pos.y - a.y) < 10) {
+      penDragging = { type: 'anchor', idx: i };
+      return;
+    }
+    if (a.cpOut && Math.hypot(pos.x - a.cpOut.x, pos.y - a.cpOut.y) < 8) {
+      penDragging = { type: 'cp', idx: i, which: 'out' };
+      return;
+    }
+    if (a.cpIn && Math.hypot(pos.x - a.cpIn.x, pos.y - a.cpIn.y) < 8) {
+      penDragging = { type: 'cp', idx: i, which: 'in' };
+      return;
+    }
+  }
+
+  // New anchor point
+  penAnchors.push({ x: pos.x, y: pos.y, w: bs, cpIn: null, cpOut: null });
+  penDragging = { type: 'cp', idx: penAnchors.length - 1, which: 'out' };
+  redrawAll();
+}
+
+function penMove(e) {
+  e.preventDefault();
+  const pos = getPos(e);
+  penPreview = pos;
+
+  if (penDragging) {
+    const a = penAnchors[penDragging.idx];
+    if (penDragging.type === 'anchor') {
+      const dx = pos.x - a.x, dy = pos.y - a.y;
+      a.x = pos.x; a.y = pos.y;
+      if (a.cpIn)  { a.cpIn.x  += dx; a.cpIn.y  += dy; }
+      if (a.cpOut) { a.cpOut.x += dx; a.cpOut.y += dy; }
+    } else {
+      const which = penDragging.which;
+      a[which === 'out' ? 'cpOut' : 'cpIn'] = { x: pos.x, y: pos.y };
+      // Mirror control point
+      const other = which === 'out' ? 'cpIn' : 'cpOut';
+      a[other] = { x: 2 * a.x - pos.x, y: 2 * a.y - pos.y };
+    }
+  }
+  redrawAll();
+}
+
+function penUp(e) {
+  penDragging = null;
+}
+
+function penCommit() {
+  if (penAnchors.length < 2) { penAnchors = []; redrawAll(); return; }
+  // Sample bezier path into stroke points
+  const bs = parseFloat(document.getElementById('brush-size').value);
+  const pts = [];
+  for (let i = 0; i < penAnchors.length - 1; i++) {
+    const a = penAnchors[i], b = penAnchors[i + 1];
+    const cp1 = a.cpOut || a;
+    const cp2 = b.cpIn  || b;
+    const steps = 40;
+    for (let t = 0; t <= 1; t += 1 / steps) {
+      const mt = 1 - t;
+      const x = mt*mt*mt*a.x + 3*mt*mt*t*cp1.x + 3*mt*t*t*cp2.x + t*t*t*b.x;
+      const y = mt*mt*mt*a.y + 3*mt*mt*t*cp1.y + 3*mt*t*t*cp2.y + t*t*t*b.y;
+      pts.push({ x, y, w: bs });
+    }
+  }
+  strokes.push({ pts: applyTurbulence(pts) });
+  penAnchors = [];
+  penPreview = null;
+  redrawAll();
+  clearTimeout(autoGenTimer);
+  autoGenTimer = setTimeout(build3D, 600);
+}
+
+function drawPenOverlay() {
+  if (!penAnchors.length) return;
+  dc.save();
+  // Draw bezier path preview
+  if (penAnchors.length > 1) {
+    dc.beginPath();
+    dc.strokeStyle = 'rgba(100,180,255,0.7)';
+    dc.lineWidth = 1.5;
+    dc.setLineDash([4, 3]);
+    dc.moveTo(penAnchors[0].x, penAnchors[0].y);
+    for (let i = 0; i < penAnchors.length - 1; i++) {
+      const a = penAnchors[i], b = penAnchors[i+1];
+      dc.bezierCurveTo(
+        a.cpOut ? a.cpOut.x : a.x, a.cpOut ? a.cpOut.y : a.y,
+        b.cpIn  ? b.cpIn.x  : b.x, b.cpIn  ? b.cpIn.y  : b.y,
+        b.x, b.y
+      );
+    }
+    dc.stroke();
+    dc.setLineDash([]);
+  }
+  // Preview segment to mouse
+  if (penPreview && penAnchors.length > 0) {
+    const last = penAnchors[penAnchors.length - 1];
+    dc.beginPath();
+    dc.strokeStyle = 'rgba(100,180,255,0.3)';
+    dc.lineWidth = 1;
+    dc.setLineDash([2, 4]);
+    dc.moveTo(last.x, last.y);
+    dc.lineTo(penPreview.x, penPreview.y);
+    dc.stroke();
+    dc.setLineDash([]);
+  }
+  // Draw anchors and control points
+  for (const a of penAnchors) {
+    // Control point handles
+    dc.strokeStyle = 'rgba(100,180,255,0.5)';
+    dc.lineWidth = 1;
+    if (a.cpOut) {
+      dc.beginPath(); dc.moveTo(a.x, a.y); dc.lineTo(a.cpOut.x, a.cpOut.y); dc.stroke();
+      dc.fillStyle = 'rgba(100,180,255,0.8)';
+      dc.beginPath(); dc.arc(a.cpOut.x, a.cpOut.y, 4, 0, Math.PI*2); dc.fill();
+    }
+    if (a.cpIn) {
+      dc.beginPath(); dc.moveTo(a.x, a.y); dc.lineTo(a.cpIn.x, a.cpIn.y); dc.stroke();
+      dc.fillStyle = 'rgba(100,180,255,0.5)';
+      dc.beginPath(); dc.arc(a.cpIn.x, a.cpIn.y, 4, 0, Math.PI*2); dc.fill();
+    }
+    // Anchor square
+    dc.fillStyle = '#fff';
+    dc.strokeStyle = '#4ab4ff';
+    dc.lineWidth = 1.5;
+    dc.beginPath(); dc.rect(a.x - 5, a.y - 5, 10, 10); dc.fill(); dc.stroke();
+  }
+  dc.restore();
+}
 
 // ─── THREE.JS SETUP ───────────────────────────────────────────────────────────
 const threeCanvas = document.getElementById('three-canvas');
@@ -420,12 +571,12 @@ let sculpture = null;
 let mcEffect = null;
 
 function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
-  const resolution = [28, 48, 72, 96, 128, 164][smoothIdx];
+  const resolution = [28, 48, 72, 96, 128, 192][smoothIdx];
   if (mcEffect) {
     mcEffect.parent && mcEffect.parent.remove(mcEffect);
     mcEffect.dispose && mcEffect.dispose();
   }
-  mcEffect = new MarchingCubes(resolution, mat, true, true, 100000);
+  mcEffect = new MarchingCubes(resolution, mat, true, true, 500000);
   mcEffect.isolation = 80;
 
   // Collect all blob positions from all strokes
@@ -488,8 +639,8 @@ function build3D(forceResolution) {
   }[currentMat] || { metalness: 0.9, roughness: 0.1 };
   const mat = new THREE.MeshStandardMaterial({ color, ...matParams });
 
-  const resolution = forceResolution || [28, 48, 72, 96, 128, 164][smoothIdx];
-  mcEffect = new MarchingCubes(resolution, mat, true, true, 100000);
+  const resolution = forceResolution || [28, 48, 72, 96, 128, 192][smoothIdx];
+  mcEffect = new MarchingCubes(resolution, mat, true, true, 500000);
   mcEffect.isolation = 80;
 
   // Build symmetry copies
@@ -591,10 +742,19 @@ document.querySelectorAll('[data-sym]').forEach(btn => {
 });
 
 document.getElementById('btn-clear').addEventListener('click', () => {
-  strokes = []; currentStroke = [];
+  strokes = []; currentStroke = []; penAnchors = []; penPreview = null;
   dc.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   if (sculpture) { scene.remove(sculpture); sculpture = null; }
   document.getElementById('hint').style.display = '';
+});
+
+document.getElementById('mode-brush').addEventListener('change', () => { drawMode = 'brush'; penAnchors = []; penPreview = null; redrawAll(); });
+document.getElementById('mode-pen').addEventListener('change', () => { drawMode = 'pen'; });
+
+// Pen: Enter key commits path
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && drawMode === 'pen') penCommit();
+  if (e.key === 'Escape' && drawMode === 'pen') { penAnchors = []; penPreview = null; redrawAll(); }
 });
 
 document.getElementById('btn-generate').addEventListener('click', build3D);
