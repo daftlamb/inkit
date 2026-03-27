@@ -118,6 +118,11 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
         <span id="z-val">0</span>
       </div>
       <div class="ctrl">
+        <label>Smooth</label>
+        <input type="range" id="smooth" min="0" max="3" value="1"/>
+        <span id="smooth-val">Med</span>
+      </div>
+      <div class="ctrl">
         <label>Color</label>
         <input type="color" id="stroke-color" value="#c8a020"/>
       </div>
@@ -463,22 +468,31 @@ function build3D() {
       }[currentMat] || { metalness: 0.9, roughness: 0.1 };
       const tubeMat = new THREE.MeshStandardMaterial({ color, ...matParams });
 
-      // Build variable-radius tube: fewer segments, higher quality per segment
+      // Smooth quality presets: [maxSegs, tubularMult, radialSegs]
+      const smoothLevels = [
+        [30, 1.5, 12],   // 0: Low
+        [20, 2.0, 20],   // 1: Med (default)
+        [12, 3.0, 28],   // 2: High
+        [8,  5.0, 40]    // 3: Ultra
+      ];
+      const smoothIdx = parseInt(document.getElementById('smooth').value);
+      const [maxSegs, tubMult, radSegs] = smoothLevels[smoothIdx];
+
+      // Build variable-radius tube
       const segGroup = new THREE.Group();
-      const step = Math.max(3, Math.floor(pts.length / 20)); // max 20 segments
+      const step = Math.max(3, Math.floor(pts.length / maxSegs));
       for (let si = 0; si < copyPts.length - step; si += step) {
         const end = Math.min(si + step + 1, copyPts.length);
         const segPts = copyPts.slice(si, end);
         if (segPts.length < 2) continue;
-        // Average width of this segment's source points
         const avgW = pts.slice(si, end).reduce((s, p) => s + p.w, 0) / (end - si);
-        const r = Math.max(0.005, avgW * scale * 0.5); // brush w → world radius
+        const r = Math.max(0.005, avgW * scale * 0.5);
         const tubeSeg = new THREE.TubeGeometry(
           new THREE.CatmullRomCurve3(segPts),
-          Math.max(12, Math.floor(step * 2)), // higher tubular segments
+          Math.max(8, Math.floor(step * tubMult)),
           r,
-          20,  // higher radial segments for smoother surface
-          true // close tube ends
+          radSegs,
+          true
         );
         segGroup.add(new THREE.Mesh(tubeSeg, tubeMat));
       }
@@ -587,6 +601,16 @@ bindSlider('tube-radius', 'tube-val', 0.001, 3);
 // Z-spread: show value and auto-rebuild on change
 document.getElementById('z-spread').addEventListener('input', e => {
   document.getElementById('z-val').textContent = e.target.value;
+  if (strokes.length) {
+    clearTimeout(autoGenTimer);
+    autoGenTimer = setTimeout(build3D, 200);
+  }
+});
+
+// Smooth: show label and auto-rebuild
+document.getElementById('smooth').addEventListener('input', e => {
+  const labels = ['Low', 'Med', 'High', 'Ultra'];
+  document.getElementById('smooth-val').textContent = labels[e.target.value];
   if (strokes.length) {
     clearTimeout(autoGenTimer);
     autoGenTimer = setTimeout(build3D, 200);
