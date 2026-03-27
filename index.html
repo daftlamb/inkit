@@ -482,22 +482,32 @@ function penCommit() {
 function drawPenOverlay() {
   if (!penAnchors.length) return;
   dc.save();
-  // Draw bezier path preview
+  // Draw bezier path preview with variable width
   if (penAnchors.length > 1) {
-    dc.beginPath();
-    dc.strokeStyle = 'rgba(100,180,255,0.7)';
-    dc.lineWidth = 1.5;
-    dc.setLineDash([4, 3]);
-    dc.moveTo(penAnchors[0].x, penAnchors[0].y);
+    const color = document.getElementById('stroke-color').value;
     for (let i = 0; i < penAnchors.length - 1; i++) {
       const a = penAnchors[i], b = penAnchors[i+1];
-      dc.bezierCurveTo(
-        a.cpOut ? a.cpOut.x : a.x, a.cpOut ? a.cpOut.y : a.y,
-        b.cpIn  ? b.cpIn.x  : b.x, b.cpIn  ? b.cpIn.y  : b.y,
-        b.x, b.y
-      );
+      const cp1 = a.cpOut || a, cp2 = b.cpIn || b;
+      const steps = 30;
+      for (let s = 0; s < steps; s++) {
+        const t0 = s / steps, t1 = (s + 1) / steps;
+        const mt0 = 1 - t0, mt1 = 1 - t1;
+        const x0 = mt0*mt0*mt0*a.x + 3*mt0*mt0*t0*cp1.x + 3*mt0*t0*t0*cp2.x + t0*t0*t0*b.x;
+        const y0 = mt0*mt0*mt0*a.y + 3*mt0*mt0*t0*cp1.y + 3*mt0*t0*t0*cp2.y + t0*t0*t0*b.y;
+        const x1 = mt1*mt1*mt1*a.x + 3*mt1*mt1*t1*cp1.x + 3*mt1*t1*t1*cp2.x + t1*t1*t1*b.x;
+        const y1 = mt1*mt1*mt1*a.y + 3*mt1*mt1*t1*cp1.y + 3*mt1*t1*t1*cp2.y + t1*t1*t1*b.y;
+        const w = (a.w * (1 - t0) + b.w * t0);
+        dc.beginPath();
+        dc.strokeStyle = color;
+        dc.globalAlpha = 0.55;
+        dc.lineWidth = w;
+        dc.lineCap = 'round';
+        dc.moveTo(x0, y0); dc.lineTo(x1, y1);
+        dc.stroke();
+      }
     }
-    dc.stroke();
+    dc.globalAlpha = 1;
+  }
     dc.setLineDash([]);
   }
   // Preview segment to mouse
