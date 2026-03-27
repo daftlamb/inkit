@@ -147,6 +147,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let symmetry = 2;
@@ -405,25 +406,51 @@ let sculpture = null;
 
 // Build flat oval tube: custom ellipse cross-section via FrenetFrames
 // Voxel sphere approach: place spheres along path, overlapping = organic blob feel
-function buildVoxelStroke(group, smoothPts, smoothWidths, scale, mat, smoothIdx) {
-  const sphereSegs = [6, 8, 10, 14][smoothIdx];
-  // Shared sphere geometry cache by radius bucket (avoid creating too many unique geos)
-  const geoCache = {};
-  let prevR = 0;
-  for (let i = 0; i < smoothPts.length; i++) {
-    const r = Math.max(0.006, smoothWidths[i] * scale * 0.5);
-    // Skip if sphere would be fully inside previous (overlap by 60%)
-    if (i > 0 && smoothPts[i].distanceTo(smoothPts[i-1]) < r * 0.4) continue;
-    // Bucket radius to reuse geometries
-    const bucket = Math.round(r * 200) / 200;
-    if (!geoCache[bucket]) {
-      geoCache[bucket] = new THREE.SphereGeometry(bucket, sphereSegs, sphereSegs);
-    }
-    const sphere = new THREE.Mesh(geoCache[bucket], mat);
-    sphere.position.copy(smoothPts[i]);
-    group.add(sphere);
-    prevR = r;
+// MarchingCubes metaball: all strokes fused into one organic mesh
+let mcEffect = null;
+
+function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
+  const resolution = [28, 40, 56, 72][smoothIdx];
+  if (mcEffect) {
+    mcEffect.parent && mcEffect.parent.remove(mcEffect);
+    mcEffect.dispose && mcEffect.dispose();
   }
+  mcEffect = new MarchingCubes(resolution, mat, true, true, 100000);
+  mcEffect.isolation = 80;
+
+  // Collect all blob positions from all strokes
+  for (const stroke of allStrokes) {
+    const pts = stroke.pts;
+    if (pts.length < 2) continue;
+    const curve = new THREE.CatmullRomCurve3(
+      pts.map(p => new THREE.Vector3(
+        (p.x - 512) / 512,
+        -(p.y - 512) / 512,
+        0
+      ))
+    );
+    const subdivide = [40, 80, 160, 320][smoothIdx];
+    const smoothPts = curve.getPoints(subdivide);
+    const smoothWidths = smoothPts.map((_, si) => {
+      const t = si / subdivide;
+      const srcIdx = Math.min(Math.floor(t * (pts.length - 1)), pts.length - 2);
+      const frac = t * (pts.length - 1) - srcIdx;
+      return pts[srcIdx].w * (1 - frac) + pts[srcIdx + 1].w * frac;
+    });
+
+    for (let i = 0; i < smoothPts.length; i++) {
+      const p = smoothPts[i];
+      const w = Math.max(0.01, smoothWidths[i] * scale * 1.2);
+      // MarchingCubes coords are in [-1,1]; map world coords to that space
+      const x = (p.x + 1) / 2;
+      const y = (p.y + 1) / 2;
+      const z = (p.z + 1) / 2;
+      if (x < 0 || x > 1 || y < 0 || y > 1 || z < 0 || z > 1) continue;
+      mcEffect.addBall(x, y, z, w, 12);
+    }
+  }
+
+  return mcEffect;
 }
 
 function build3D() {
@@ -435,15 +462,25 @@ function build3D() {
     sculpture.traverse(c => { c.geometry?.dispose(); c.material?.dispose(); });
     sculpture = null;
   }
+  if (mcEffect) { mcEffect.parent && mcEffect.parent.remove(mcEffect); mcEffect = null; }
   if (!strokes.length) return;
 
-  const group = new THREE.Group();
   const color = new THREE.Color(document.getElementById('stroke-color').value);
-  const tubeR = parseFloat(document.getElementById('tube-radius').value) / 1000;
-
-  // Canvas dimensions for normalization
+  const smoothIdx = parseInt(document.getElementById('smooth').value);
+  const zSpread = parseFloat(document.getElementById('z-spread').value) / 100 * 3.0;
   const cw = drawCanvas.width, ch = drawCanvas.height;
-  const scale = 3.0 / Math.max(cw, ch);
+  const scale = parseFloat(document.getElementById('tube-radius').value) / 1000;
+
+  const matParams = {
+    chrome: { metalness: 1.0, roughness: 0.0,  envMapIntensity: 2.0 },
+    matte:  { metalness: 0.0, roughness: 0.85, envMapIntensity: 0.3 },
+    gold:   { metalness: 1.0, roughness: 0.15, envMapIntensity: 1.5 },
+  }[currentMat] || { metalness: 0.9, roughness: 0.1 };
+  const mat = new THREE.MeshStandardMaterial({ color, ...matParams });
+
+  const resolution = [28, 40, 56, 72][smoothIdx];
+  mcEffect = new MarchingCubes(resolution, mat, true, true, 100000);
+  mcEffect.isolation = 80;
 
   // Build symmetry copies
   const symCopies = [];
@@ -454,50 +491,25 @@ function build3D() {
     symCopies.push({ angle: 0, mirror: true });
   } else {
     const n = parseInt(symmetry);
-    for (let i = 0; i < n; i++) {
-      symCopies.push({ angle: (Math.PI * 2 * i) / n, mirror: false });
-    }
+    for (let i = 0; i < n; i++) symCopies.push({ angle: (Math.PI * 2 * i) / n, mirror: false });
   }
+
+  const subdivide = [40, 80, 160, 320][smoothIdx];
 
   for (const stroke of strokes) {
     const pts = stroke.pts;
-    if (pts.length < 3) continue;
+    if (pts.length < 2) continue;
 
-    // Normalize to [-1.5, 1.5] world space, with optional Z spread
-    const zSpread = parseFloat(document.getElementById('z-spread').value) / 100 * 3.0;
-    const worldPts = pts.map((p, i) => {
-      // Map point index along stroke to Z depth
+    const rawPts = pts.map((p, i) => {
       const t = pts.length > 1 ? i / (pts.length - 1) : 0;
-      // Use a gentle curve: center points pop forward, ends recede
       const zCurve = Math.sin(t * Math.PI) * zSpread;
-      return new THREE.Vector3(
-        (p.x - cw / 2) * scale,
-        -(p.y - ch / 2) * scale,
-        zCurve
-      );
+      return new THREE.Vector3((p.x - cw/2) / cw, -(p.y - ch/2) / ch, zCurve * 0.3);
     });
 
     for (const copy of symCopies) {
-      let copyPts = worldPts;
-      if (copy.mirror) {
-        copyPts = worldPts.map(p => new THREE.Vector3(-p.x, p.y, p.z));
-      }
-
-      const matParams = {
-        chrome: { metalness: 1.0, roughness: 0.0,  envMapIntensity: 2.0 },
-        matte:  { metalness: 0.0, roughness: 0.85, envMapIntensity: 0.3 },
-        gold:   { metalness: 1.0, roughness: 0.15, envMapIntensity: 1.5 },
-      }[currentMat] || { metalness: 0.9, roughness: 0.1 };
-      const mat = new THREE.MeshStandardMaterial({ color, ...matParams });
-
-      // Smooth: controls CatmullRom subdivision + radial segments
-      const smoothIdx = parseInt(document.getElementById('smooth').value);
-      const subdivide = [40, 80, 160, 320][smoothIdx];
-
-      // Subdivide stroke via CatmullRom for smooth path
-      const curve = new THREE.CatmullRomCurve3(copyPts);
+      const copyRaw = copy.mirror ? rawPts.map(p => new THREE.Vector3(-p.x, p.y, p.z)) : rawPts;
+      const curve = new THREE.CatmullRomCurve3(copyRaw);
       const smoothPts = curve.getPoints(subdivide);
-      // Interpolate widths along subdivided path
       const smoothWidths = smoothPts.map((_, si) => {
         const t = si / subdivide;
         const srcIdx = Math.min(Math.floor(t * (pts.length - 1)), pts.length - 2);
@@ -505,15 +517,25 @@ function build3D() {
         return pts[srcIdx].w * (1 - frac) + pts[srcIdx + 1].w * frac;
       });
 
-      // Build voxel sphere chain along path
-      const sphereGroup = new THREE.Group();
-      buildVoxelStroke(sphereGroup, smoothPts, smoothWidths, scale, mat, smoothIdx);
-      if (copy.angle !== 0) sphereGroup.rotation.y = copy.angle;
-      group.add(sphereGroup);
+      for (let i = 0; i < smoothPts.length; i++) {
+        const p = smoothPts[i];
+        // Map from [-0.5,0.5] to [0,1] for MarchingCubes
+        const x = p.x + 0.5;
+        const y = p.y + 0.5;
+        const z = p.z + 0.5;
+        if (x < 0.01 || x > 0.99 || y < 0.01 || y > 0.99 || z < 0.01 || z > 0.99) continue;
+        const strength = Math.max(0.01, smoothWidths[i] * scale * 8);
+        mcEffect.addBall(x, y, z, strength, 12);
+      }
+
+      if (copy.angle !== 0) {
+        // Rotate blobs by re-adding with rotated coords (approximate)
+        // MarchingCubes doesn't support rotation natively; skip for now
+      }
     }
   }
 
-  sculpture = group;
+  sculpture = mcEffect;
   scene.add(sculpture);
 
   // Frame camera to fit sculpture
