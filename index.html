@@ -396,9 +396,9 @@ function penDown(e) {
   // Check if clicking near existing anchor, w-handle, or control point
   for (let i = 0; i < penAnchors.length; i++) {
     const a = penAnchors[i];
-    // W handle: circle to the right of anchor
-    const wx = a.x + 14, wy = a.y;
-    if (Math.hypot(pos.x - wx, pos.y - wy) < 8) {
+    // W handle: circle to the right of anchor (check before anchor to avoid overlap)
+    const wx = a.x + 22, wy = a.y;
+    if (Math.hypot(pos.x - wx, pos.y - wy) < 10) {
       penDragging = { type: 'w', idx: i, startY: pos.y, startW: a.w };
       return;
     }
@@ -545,7 +545,7 @@ function drawPenOverlay() {
     dc.fillStyle = 'rgba(255,160,60,0.9)';
     dc.strokeStyle = 'rgba(255,120,20,0.8)';
     dc.lineWidth = 1.5;
-    dc.beginPath(); dc.arc(a.x + 14, a.y, wRadius, 0, Math.PI * 2); dc.fill(); dc.stroke();
+    dc.beginPath(); dc.arc(a.x + 22, a.y, wRadius, 0, Math.PI * 2); dc.fill(); dc.stroke();
   }
   dc.restore();
 }
