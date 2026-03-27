@@ -404,67 +404,26 @@ function resizeThree() {
 let sculpture = null;
 
 // Build flat oval tube: custom ellipse cross-section via FrenetFrames
-function buildOvalTube(worldPts, widths, scale, radialSegs) {
-  const positions = [];
-  const normals = [];
-  const indices = [];
-  const n = worldPts.length;
-  const heightRatio = 1.0; // perfect circle cross-section, liquid metal
-
-  // Compute tangents, normals, binormals via Frenet frames
-  const tangents = [], norms = [], binorms = [];
-  for (let i = 0; i < n; i++) {
-    let t;
-    if (i === 0) t = new THREE.Vector3().subVectors(worldPts[1], worldPts[0]);
-    else if (i === n - 1) t = new THREE.Vector3().subVectors(worldPts[n-1], worldPts[n-2]);
-    else t = new THREE.Vector3().subVectors(worldPts[i+1], worldPts[i-1]);
-    tangents.push(t.normalize());
-    const up = new THREE.Vector3(0, 1, 0);
-    const b = new THREE.Vector3().crossVectors(t, up).normalize();
-    if (b.length() < 0.001) b.set(1, 0, 0);
-    binorms.push(b);
-    norms.push(new THREE.Vector3().crossVectors(b, t).normalize());
-  }
-
-  // Generate ring vertices at each path point
-  for (let i = 0; i < n; i++) {
-    const p = worldPts[i];
-    const hw = Math.max(0.008, widths[i] * scale * 0.5); // half-width
-    const hh = hw * heightRatio; // half-height
-    for (let j = 0; j <= radialSegs; j++) {
-      const theta = (j / radialSegs) * Math.PI * 2;
-      const ox = Math.cos(theta) * hw;
-      const oy = Math.sin(theta) * hh;
-      const vx = p.x + binorms[i].x * ox + norms[i].x * oy;
-      const vy = p.y + binorms[i].y * ox + norms[i].y * oy;
-      const vz = p.z + binorms[i].z * ox + norms[i].z * oy;
-      positions.push(vx, vy, vz);
-      // Normal points outward from ellipse center
-      const nx = binorms[i].x * Math.cos(theta) + norms[i].x * Math.sin(theta);
-      const ny = binorms[i].y * Math.cos(theta) + norms[i].y * Math.sin(theta);
-      const nz = binorms[i].z * Math.cos(theta) + norms[i].z * Math.sin(theta);
-      normals.push(nx, ny, nz);
+// Voxel sphere approach: place spheres along path, overlapping = organic blob feel
+function buildVoxelStroke(group, smoothPts, smoothWidths, scale, mat, smoothIdx) {
+  const sphereSegs = [6, 8, 10, 14][smoothIdx];
+  // Shared sphere geometry cache by radius bucket (avoid creating too many unique geos)
+  const geoCache = {};
+  let prevR = 0;
+  for (let i = 0; i < smoothPts.length; i++) {
+    const r = Math.max(0.006, smoothWidths[i] * scale * 0.5);
+    // Skip if sphere would be fully inside previous (overlap by 60%)
+    if (i > 0 && smoothPts[i].distanceTo(smoothPts[i-1]) < r * 0.4) continue;
+    // Bucket radius to reuse geometries
+    const bucket = Math.round(r * 200) / 200;
+    if (!geoCache[bucket]) {
+      geoCache[bucket] = new THREE.SphereGeometry(bucket, sphereSegs, sphereSegs);
     }
+    const sphere = new THREE.Mesh(geoCache[bucket], mat);
+    sphere.position.copy(smoothPts[i]);
+    group.add(sphere);
+    prevR = r;
   }
-
-  // Build quad faces between rings
-  const ringSize = radialSegs + 1;
-  for (let i = 0; i < n - 1; i++) {
-    for (let j = 0; j < radialSegs; j++) {
-      const a = i * ringSize + j;
-      const b = a + 1;
-      const c = (i + 1) * ringSize + j;
-      const d = c + 1;
-      indices.push(a, c, b);
-      indices.push(b, c, d);
-    }
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geo.setIndex(indices);
-  return geo;
 }
 
 function build3D() {
@@ -533,8 +492,7 @@ function build3D() {
 
       // Smooth: controls CatmullRom subdivision + radial segments
       const smoothIdx = parseInt(document.getElementById('smooth').value);
-      const subdivide = [20, 40, 80, 160][smoothIdx];
-      const radialSegs = [8, 12, 16, 24][smoothIdx];
+      const subdivide = [40, 80, 160, 320][smoothIdx];
 
       // Subdivide stroke via CatmullRom for smooth path
       const curve = new THREE.CatmullRomCurve3(copyPts);
@@ -547,11 +505,11 @@ function build3D() {
         return pts[srcIdx].w * (1 - frac) + pts[srcIdx + 1].w * frac;
       });
 
-      // Build oval tube geometry (flat ellipse cross-section)
-      const tubeGeo = buildOvalTube(smoothPts, smoothWidths, scale, radialSegs);
-      const tube = new THREE.Mesh(tubeGeo, mat);
-      if (copy.angle !== 0) tube.rotation.y = copy.angle;
-      group.add(tube);
+      // Build voxel sphere chain along path
+      const sphereGroup = new THREE.Group();
+      buildVoxelStroke(sphereGroup, smoothPts, smoothWidths, scale, mat, smoothIdx);
+      if (copy.angle !== 0) sphereGroup.rotation.y = copy.angle;
+      group.add(sphereGroup);
     }
   }
 
