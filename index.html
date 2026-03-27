@@ -70,11 +70,17 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
     <button class="sym-btn" data-sym="mirror">Mirror</button>
   </div>
   <div class="sep"></div>
+  <div style="display:flex;gap:4px;">
+    <button class="sym-btn active" data-mat="chrome">Chrome</button>
+    <button class="sym-btn" data-mat="matte">Matte</button>
+    <button class="sym-btn" data-mat="gold">Gold</button>
+  </div>
+  <div class="sep"></div>
   <button class="act-btn" id="btn-clear">Clear</button>
   <button class="act-btn" id="btn-generate">Generate 3D</button>
   <button class="act-btn" id="btn-export">Export PNG</button>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
-    <input type="checkbox" id="bloom-toggle"/> Bloom
+    <input type="checkbox" id="bloom-toggle" checked/> Bloom
   </label>
 </div>
 
@@ -120,11 +126,14 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let symmetry = 2;
+let currentMat = 'chrome';
 let strokes = [];       // completed strokes: [{pts:[{x,y,w}]}]
 let currentStroke = []; // points being drawn
 let isDrawing = false;
 let lastX = 0, lastY = 0, lastT = 0;
 let autoGenTimer = null;
+let poolTimer = null;   // ink pooling timer when mouse is still
+let poolW = 0;          // current pooling width
 
 // ─── DRAWING CANVAS ───────────────────────────────────────────────────────────
 const drawCanvas = document.getElementById('draw-canvas');
@@ -226,11 +235,28 @@ function getPos(e) {
 
 function startDraw(e) {
   e.preventDefault();
+  clearTimeout(poolTimer);
   isDrawing = true;
   const pos = getPos(e);
   lastX = pos.x; lastY = pos.y; lastT = Date.now();
   const bs = parseFloat(document.getElementById('brush-size').value);
+  poolW = bs;
   currentStroke = [{ x: pos.x, y: pos.y, w: bs }];
+}
+
+function startPool(x, y) {
+  // Ink pools when mouse is still — grow width over time
+  clearTimeout(poolTimer);
+  const bs = parseFloat(document.getElementById('brush-size').value);
+  const maxPool = bs * 4;
+  function grow() {
+    if (!isDrawing) return;
+    poolW = Math.min(poolW + bs * 0.12, maxPool);
+    currentStroke.push({ x, y, w: poolW });
+    redrawAll();
+    poolTimer = setTimeout(grow, 40);
+  }
+  poolTimer = setTimeout(grow, 120); // start pooling after 120ms still
 }
 
 function moveDraw(e) {
@@ -240,19 +266,35 @@ function moveDraw(e) {
   const now = Date.now();
   const dt = Math.max(1, now - lastT);
   const dist = Math.hypot(pos.x - lastX, pos.y - lastY);
-  const speed = dist / dt;
+
+  if (dist < 1.5) {
+    // Mouse nearly still — start pooling
+    startPool(pos.x, pos.y);
+    return;
+  }
+  clearTimeout(poolTimer);
+
+  const speed = dist / dt; // px/ms
   const bs = parseFloat(document.getElementById('brush-size').value);
-  // Fast = thin, slow = thick (ink bleed)
-  const w = Math.max(1, bs * (1 - Math.min(speed * 0.15, 0.75)));
-  currentStroke.push({ x: pos.x, y: pos.y, w });
+
+  // Speed → width: fast=thin, slow=thick, with smooth easing
+  const targetW = Math.max(1.5, bs * (1.2 - Math.min(speed * 0.2, 1.0)));
+  // Lerp current poolW toward targetW for smooth transitions
+  poolW = poolW * 0.6 + targetW * 0.4;
+
+  currentStroke.push({ x: pos.x, y: pos.y, w: poolW });
   lastX = pos.x; lastY = pos.y; lastT = now;
   redrawAll();
 }
 
 function endDraw(e) {
   if (!isDrawing) return;
+  clearTimeout(poolTimer);
   isDrawing = false;
   if (currentStroke.length > 1) {
+    // Taper end of stroke
+    const last = currentStroke[currentStroke.length - 1];
+    currentStroke.push({ x: last.x, y: last.y, w: Math.max(0.5, last.w * 0.3) });
     strokes.push({ pts: applyTurbulence(currentStroke) });
     currentStroke = [];
     redrawAll();
@@ -301,7 +343,7 @@ const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 
 const bloomPass = new UnrealBloomPass(new THREE.Vector2(800, 600), 0.5, 0.4, 0.7);
-bloomPass.enabled = false;
+bloomPass.enabled = true;
 composer.addPass(bloomPass);
 
 const outputPass = new OutputPass();
@@ -371,11 +413,15 @@ function build3D() {
       }
 
       const curve = new THREE.CatmullRomCurve3(copyPts);
-      const tubeGeo = new THREE.TubeGeometry(curve, Math.max(20, pts.length), tubeR, 8, false);
+      const tubeGeo = new THREE.TubeGeometry(curve, Math.max(20, pts.length), tubeR, 12, false);
+      const matParams = {
+        chrome: { metalness: 1.0, roughness: 0.0,  envMapIntensity: 2.0 },
+        matte:  { metalness: 0.0, roughness: 0.85, envMapIntensity: 0.3 },
+        gold:   { metalness: 1.0, roughness: 0.15, envMapIntensity: 1.5 },
+      }[currentMat] || { metalness: 0.9, roughness: 0.1 };
       const tubeMat = new THREE.MeshStandardMaterial({
         color,
-        metalness: 0.9,
-        roughness: 0.1,
+        ...matParams,
       });
       const tube = new THREE.Mesh(tubeGeo, tubeMat);
 
@@ -433,6 +479,30 @@ document.getElementById('btn-generate').addEventListener('click', build3D);
 
 document.getElementById('bloom-toggle').addEventListener('change', e => {
   bloomPass.enabled = e.target.checked;
+});
+
+// Material buttons
+document.querySelectorAll('[data-mat]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-mat]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMat = btn.dataset.mat;
+    // Chrome: auto bloom on + high exposure; Matte: bloom off
+    if (currentMat === 'chrome') {
+      bloomPass.enabled = true;
+      document.getElementById('bloom-toggle').checked = true;
+      renderer.toneMappingExposure = 1.5;
+    } else if (currentMat === 'matte') {
+      bloomPass.enabled = true;
+      document.getElementById('bloom-toggle').checked = false;
+      renderer.toneMappingExposure = 1.0;
+    } else {
+      bloomPass.enabled = true;
+      document.getElementById('bloom-toggle').checked = true;
+      renderer.toneMappingExposure = 1.2;
+    }
+    if (sculpture) build3D(); // rebuild with new material
+  });
 });
 
 // Slider bindings
