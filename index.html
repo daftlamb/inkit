@@ -104,6 +104,11 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
         <span id="tube-val">0.015</span>
       </div>
       <div class="ctrl">
+        <label>Z Spread</label>
+        <input type="range" id="z-spread" min="0" max="100" value="0"/>
+        <span id="z-val">0</span>
+      </div>
+      <div class="ctrl">
         <label>Color</label>
         <input type="color" id="stroke-color" value="#c8a020"/>
       </div>
@@ -399,12 +404,19 @@ function build3D() {
     const pts = stroke.pts;
     if (pts.length < 3) continue;
 
-    // Normalize to [-1.5, 1.5] world space
-    const worldPts = pts.map(p => new THREE.Vector3(
-      (p.x - cw / 2) * scale,
-      -(p.y - ch / 2) * scale,
-      0
-    ));
+    // Normalize to [-1.5, 1.5] world space, with optional Z spread
+    const zSpread = parseFloat(document.getElementById('z-spread').value) / 100 * 3.0;
+    const worldPts = pts.map((p, i) => {
+      // Map point index along stroke to Z depth
+      const t = pts.length > 1 ? i / (pts.length - 1) : 0;
+      // Use a gentle curve: center points pop forward, ends recede
+      const zCurve = Math.sin(t * Math.PI) * zSpread;
+      return new THREE.Vector3(
+        (p.x - cw / 2) * scale,
+        -(p.y - ch / 2) * scale,
+        zCurve
+      );
+    });
 
     for (const copy of symCopies) {
       let copyPts = worldPts;
@@ -517,6 +529,15 @@ function bindSlider(id, valId, factor, digits) {
 bindSlider('brush-size', 'brush-val', 0, 0);
 bindSlider('turbulence', 'turb-val', 0, 0);
 bindSlider('tube-radius', 'tube-val', 0.001, 3);
+
+// Z-spread: show value and auto-rebuild on change
+document.getElementById('z-spread').addEventListener('input', e => {
+  document.getElementById('z-val').textContent = e.target.value;
+  if (strokes.length) {
+    clearTimeout(autoGenTimer);
+    autoGenTimer = setTimeout(build3D, 200);
+  }
+});
 
 // Export
 document.getElementById('btn-export').addEventListener('click', () => {
