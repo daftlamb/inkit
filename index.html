@@ -185,7 +185,7 @@ let poolTimer = null;   // ink pooling timer when mouse is still
 let poolW = 0;          // current pooling width
 let drawMode = 'brush'; // 'brush' | 'pen'
 let penAnchors = [];    // [{x,y,cpIn:{x,y},cpOut:{x,y}}]
-let penDragging = null; // null | {type:'cp'|'anchor', idx, which:'in'|'out'}
+let penDragging = null; // null | {type:'cp'|'anchor'|'w', idx, which:'in'|'out', startY, startW}
 let penPreview = null;  // current mouse pos for preview segment
 
 // ─── DRAWING CANVAS ───────────────────────────────────────────────────────────
@@ -393,9 +393,15 @@ function penDown(e) {
   const pos = getPos(e);
   const bs = parseFloat(document.getElementById('brush-size').value);
 
-  // Check if clicking near existing anchor or control point
+  // Check if clicking near existing anchor, w-handle, or control point
   for (let i = 0; i < penAnchors.length; i++) {
     const a = penAnchors[i];
+    // W handle: circle to the right of anchor
+    const wx = a.x + 14, wy = a.y;
+    if (Math.hypot(pos.x - wx, pos.y - wy) < 8) {
+      penDragging = { type: 'w', idx: i, startY: pos.y, startW: a.w };
+      return;
+    }
     if (Math.hypot(pos.x - a.x, pos.y - a.y) < 10) {
       penDragging = { type: 'anchor', idx: i };
       return;
@@ -423,7 +429,12 @@ function penMove(e) {
 
   if (penDragging) {
     const a = penAnchors[penDragging.idx];
-    if (penDragging.type === 'anchor') {
+    if (penDragging.type === 'w') {
+      // Drag up = bigger, down = smaller
+      const dy = penDragging.startY - pos.y;
+      const bs = parseFloat(document.getElementById('brush-size').value);
+      a.w = Math.max(1, Math.min(bs * 15, penDragging.startW + dy * 0.4));
+    } else if (penDragging.type === 'anchor') {
       const dx = pos.x - a.x, dy = pos.y - a.y;
       a.x = pos.x; a.y = pos.y;
       if (a.cpIn)  { a.cpIn.x  += dx; a.cpIn.y  += dy; }
@@ -431,7 +442,6 @@ function penMove(e) {
     } else {
       const which = penDragging.which;
       a[which === 'out' ? 'cpOut' : 'cpIn'] = { x: pos.x, y: pos.y };
-      // Mirror control point
       const other = which === 'out' ? 'cpIn' : 'cpOut';
       a[other] = { x: 2 * a.x - pos.x, y: 2 * a.y - pos.y };
     }
@@ -521,6 +531,12 @@ function drawPenOverlay() {
     dc.strokeStyle = '#4ab4ff';
     dc.lineWidth = 1.5;
     dc.beginPath(); dc.rect(a.x - 5, a.y - 5, 10, 10); dc.fill(); dc.stroke();
+    // W handle: orange circle, size shows current w
+    const wRadius = Math.max(3, Math.min(12, a.w * 0.18));
+    dc.fillStyle = 'rgba(255,160,60,0.9)';
+    dc.strokeStyle = 'rgba(255,120,20,0.8)';
+    dc.lineWidth = 1.5;
+    dc.beginPath(); dc.arc(a.x + 14, a.y, wRadius, 0, Math.PI * 2); dc.fill(); dc.stroke();
   }
   dc.restore();
 }
