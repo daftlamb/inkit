@@ -404,6 +404,55 @@ function resizeThree() {
 // ─── 3D BUILD ─────────────────────────────────────────────────────────────────
 let sculpture = null;
 
+// Build ribbon geometry: flat strip along path with variable width
+function buildRibbonGeometry(worldPts, widths, scale) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+  
+  for (let i = 0; i < worldPts.length; i++) {
+    const p = worldPts[i];
+    const w = widths[i] * scale * 0.5; // half-width for each side
+    
+    // Compute tangent direction
+    let tangent;
+    if (i === 0) {
+      tangent = new THREE.Vector3().subVectors(worldPts[1], p).normalize();
+    } else if (i === worldPts.length - 1) {
+      tangent = new THREE.Vector3().subVectors(p, worldPts[i - 1]).normalize();
+    } else {
+      tangent = new THREE.Vector3().subVectors(worldPts[i + 1], worldPts[i - 1]).normalize();
+    }
+    
+    // Perpendicular vector (cross with up)
+    const perp = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize();
+    if (perp.length() < 0.01) {
+      perp.set(1, 0, 0); // fallback if tangent is vertical
+    }
+    
+    // Two vertices: left and right edge
+    const left = new THREE.Vector3().addVectors(p, perp.clone().multiplyScalar(w));
+    const right = new THREE.Vector3().addVectors(p, perp.clone().multiplyScalar(-w));
+    
+    positions.push(left.x, left.y, left.z);
+    positions.push(right.x, right.y, right.z);
+    normals.push(0, 1, 0, 0, 1, 0); // flat ribbon faces up
+    
+    // Build quad faces
+    if (i > 0) {
+      const base = (i - 1) * 2;
+      indices.push(base, base + 1, base + 2);
+      indices.push(base + 1, base + 3, base + 2);
+    }
+  }
+  
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geo.setIndex(indices);
+  return geo;
+}
+
 function build3D() {
   document.getElementById('hint').style.display = 'none';
 
@@ -466,39 +515,29 @@ function build3D() {
         matte:  { metalness: 0.0, roughness: 0.85, envMapIntensity: 0.3 },
         gold:   { metalness: 1.0, roughness: 0.15, envMapIntensity: 1.5 },
       }[currentMat] || { metalness: 0.9, roughness: 0.1 };
-      const tubeMat = new THREE.MeshStandardMaterial({ color, ...matParams });
+      const mat = new THREE.MeshStandardMaterial({ color, ...matParams, side: THREE.DoubleSide });
 
-      // Smooth quality presets: [maxSegs, tubularMult, radialSegs]
-      const smoothLevels = [
-        [30, 1.5, 12],   // 0: Low
-        [20, 2.0, 20],   // 1: Med (default)
-        [12, 3.0, 28],   // 2: High
-        [8,  5.0, 40]    // 3: Ultra
-      ];
+      // Smooth: controls CatmullRom subdivision
       const smoothIdx = parseInt(document.getElementById('smooth').value);
-      const [maxSegs, tubMult, radSegs] = smoothLevels[smoothIdx];
+      const subdivide = [20, 40, 80, 160][smoothIdx];
 
-      // Build variable-radius tube
-      const segGroup = new THREE.Group();
-      const step = Math.max(3, Math.floor(pts.length / maxSegs));
-      for (let si = 0; si < copyPts.length - step; si += step) {
-        const end = Math.min(si + step + 1, copyPts.length);
-        const segPts = copyPts.slice(si, end);
-        if (segPts.length < 2) continue;
-        const avgW = pts.slice(si, end).reduce((s, p) => s + p.w, 0) / (end - si);
-        const r = Math.max(0.005, avgW * scale * 0.5);
-        const tubeSeg = new THREE.TubeGeometry(
-          new THREE.CatmullRomCurve3(segPts),
-          Math.max(8, Math.floor(step * tubMult)),
-          r,
-          radSegs,
-          true
-        );
-        segGroup.add(new THREE.Mesh(tubeSeg, tubeMat));
-      }
+      // Subdivide stroke via CatmullRom for smooth path
+      const curve = new THREE.CatmullRomCurve3(copyPts);
+      const smoothPts = curve.getPoints(subdivide);
+      // Interpolate widths along subdivided path
+      const smoothWidths = smoothPts.map((_, si) => {
+        const t = si / subdivide;
+        const srcIdx = Math.min(Math.floor(t * (pts.length - 1)), pts.length - 2);
+        const frac = t * (pts.length - 1) - srcIdx;
+        return pts[srcIdx].w * (1 - frac) + pts[srcIdx + 1].w * frac;
+      });
 
-      if (copy.angle !== 0) segGroup.rotation.y = copy.angle;
-      group.add(segGroup);
+      // Build ribbon geometry (flat strip)
+      const ribbonGeo = buildRibbonGeometry(smoothPts, smoothWidths, scale);
+      ribbonGeo.computeVertexNormals();
+      const ribbon = new THREE.Mesh(ribbonGeo, mat);
+      if (copy.angle !== 0) ribbon.rotation.y = copy.angle;
+      group.add(ribbon);
     }
   }
 
