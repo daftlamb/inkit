@@ -86,10 +86,13 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
   <button class="act-btn" id="btn-generate">Generate 3D</button>
   <button class="act-btn" id="btn-export">Export PNG</button>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
-    <input type="checkbox" id="bloom-toggle" checked/> Bloom
+    <input type="checkbox" id="bloom-toggle"/> Bloom
   </label>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
-    <input type="checkbox" id="grid-toggle"/> Grid
+    <input type="checkbox" id="grid-toggle" checked/> Grid
+  </label>
+  <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
+    <input type="checkbox" id="bright-toggle"/> Bright
   </label>
 </div>
 
@@ -121,6 +124,11 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
         <label>Smooth</label>
         <input type="range" id="smooth" min="0" max="3" value="1"/>
         <span id="smooth-val">Med</span>
+      </div>
+      <div class="ctrl">
+        <label>Strength</label>
+        <input type="range" id="strength" min="1" max="100" value="6"/>
+        <span id="strength-val">0.06</span>
       </div>
       <div class="ctrl">
         <label>Color</label>
@@ -363,7 +371,7 @@ scene.background = new THREE.Color('#0d0d0d');
 
 // 3D grid helper (floor)
 const gridHelper = new THREE.GridHelper(6, 12, 0x333333, 0x222222);
-gridHelper.visible = false;
+gridHelper.visible = true;
 scene.add(gridHelper);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
@@ -384,8 +392,8 @@ const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(800, 600), 0.5, 0.4, 0.7);
-bloomPass.enabled = true;
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(800, 600), 0.05, 0.4, 0.7);
+bloomPass.enabled = false;
 composer.addPass(bloomPass);
 
 const outputPass = new OutputPass();
@@ -524,7 +532,8 @@ function build3D() {
         const y = p.y + 0.5;
         const z = p.z + 0.5;
         if (x < 0.01 || x > 0.99 || y < 0.01 || y > 0.99 || z < 0.01 || z > 0.99) continue;
-        const strength = Math.max(0.005, smoothWidths[i] * scale * 1.2);
+        const strengthMult = parseFloat(document.getElementById('strength').value) / 100;
+        const strength = Math.max(0.005, smoothWidths[i] * scale * strengthMult);
         mcEffect.addBall(x, y, z, strength, 12);
       }
 
@@ -597,6 +606,15 @@ document.getElementById('grid-toggle').addEventListener('change', e => {
   redrawAll();
 });
 
+document.getElementById('bright-toggle').addEventListener('change', e => {
+  const bright = e.target.checked;
+  scene.background = new THREE.Color(bright ? '#f0ede8' : '#0d0d0d');
+  document.body.style.background = bright ? '#e8e4de' : '#111';
+  document.querySelectorAll('.panel, #left-panel, #right-panel, #controls-panel').forEach(el => {
+    el.style.background = bright ? 'rgba(240,237,232,0.95)' : '';
+  });
+});
+
 // Material buttons
 document.querySelectorAll('.mat-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -647,6 +665,15 @@ document.getElementById('z-spread').addEventListener('input', e => {
 document.getElementById('smooth').addEventListener('input', e => {
   const labels = ['Low', 'Med', 'High', 'Ultra'];
   document.getElementById('smooth-val').textContent = labels[e.target.value];
+  if (strokes.length) {
+    clearTimeout(autoGenTimer);
+    autoGenTimer = setTimeout(build3D, 200);
+  }
+});
+
+document.getElementById('strength').addEventListener('input', e => {
+  const v = (e.target.value / 100).toFixed(2);
+  document.getElementById('strength-val').textContent = v;
   if (strokes.length) {
     clearTimeout(autoGenTimer);
     autoGenTimer = setTimeout(build3D, 200);
