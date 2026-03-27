@@ -524,7 +524,7 @@ function build3D() {
         const y = p.y + 0.5;
         const z = p.z + 0.5;
         if (x < 0.01 || x > 0.99 || y < 0.01 || y > 0.99 || z < 0.01 || z > 0.99) continue;
-        const strength = Math.max(0.01, smoothWidths[i] * scale * 8);
+        const strength = Math.max(0.005, smoothWidths[i] * scale * 1.2);
         mcEffect.addBall(x, y, z, strength, 12);
       }
 
