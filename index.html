@@ -123,7 +123,7 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
       </div>
       <div class="ctrl">
         <label>Smooth</label>
-        <input type="range" id="smooth" min="0" max="3" value="1"/>
+        <input type="range" id="smooth" min="0" max="4" value="1"/>
         <span id="smooth-val">Med</span>
       </div>
       <div class="ctrl">
@@ -419,7 +419,7 @@ let sculpture = null;
 let mcEffect = null;
 
 function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
-  const resolution = [28, 40, 56, 72][smoothIdx];
+  const resolution = [28, 48, 72, 96, 128][smoothIdx];
   if (mcEffect) {
     mcEffect.parent && mcEffect.parent.remove(mcEffect);
     mcEffect.dispose && mcEffect.dispose();
@@ -438,7 +438,7 @@ function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
         0
       ))
     );
-    const subdivide = [40, 80, 160, 320][smoothIdx];
+    const subdivide = [40, 80, 160, 320, 480][smoothIdx];
     const smoothPts = curve.getPoints(subdivide);
     const smoothWidths = smoothPts.map((_, si) => {
       const t = si / subdivide;
@@ -487,7 +487,7 @@ function build3D(forceResolution) {
   }[currentMat] || { metalness: 0.9, roughness: 0.1 };
   const mat = new THREE.MeshStandardMaterial({ color, ...matParams });
 
-  const resolution = forceResolution || [28, 40, 56, 72][smoothIdx];
+  const resolution = forceResolution || [28, 48, 72, 96, 128][smoothIdx];
   mcEffect = new MarchingCubes(resolution, mat, true, true, 100000);
   mcEffect.isolation = 80;
 
@@ -503,7 +503,7 @@ function build3D(forceResolution) {
     for (let i = 0; i < n; i++) symCopies.push({ angle: (Math.PI * 2 * i) / n, mirror: false });
   }
 
-  const subdivide = [40, 80, 160, 320][smoothIdx];
+  const subdivide = [40, 80, 160, 320, 480][smoothIdx];
 
   for (const stroke of strokes) {
     const pts = stroke.pts;
@@ -674,7 +674,7 @@ document.getElementById('z-spread').addEventListener('input', e => {
 
 // Smooth: show label and auto-rebuild
 document.getElementById('smooth').addEventListener('input', e => {
-  const labels = ['Low', 'Med', 'High', 'Ultra'];
+  const labels = ['Low', 'Med', 'High', 'Ultra', 'Max'];
   document.getElementById('smooth-val').textContent = labels[e.target.value];
   if (strokes.length) {
     clearTimeout(autoGenTimer);
