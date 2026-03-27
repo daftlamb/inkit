@@ -123,7 +123,7 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
       </div>
       <div class="ctrl">
         <label>Smooth</label>
-        <input type="range" id="smooth" min="0" max="4" value="1"/>
+        <input type="range" id="smooth" min="0" max="5" value="1"/>
         <span id="smooth-val">Med</span>
       </div>
       <div class="ctrl">
@@ -233,13 +233,14 @@ function drawStroke(pts, alpha) {
   dc.lineCap = 'round';
   dc.lineJoin = 'round';
   dc.strokeStyle = `rgb(${r},${g},${b})`;
-  dc.beginPath();
-  dc.moveTo(pts[0].x, pts[0].y);
+  // Draw each segment separately so lineWidth varies per point
   for (let i = 1; i < pts.length; i++) {
+    dc.beginPath();
     dc.lineWidth = pts[i].w;
+    dc.moveTo(pts[i-1].x, pts[i-1].y);
     dc.lineTo(pts[i].x, pts[i].y);
+    dc.stroke();
   }
-  dc.stroke();
   dc.globalAlpha = 1;
 }
 
@@ -419,7 +420,7 @@ let sculpture = null;
 let mcEffect = null;
 
 function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
-  const resolution = [28, 48, 72, 96, 128][smoothIdx];
+  const resolution = [28, 48, 72, 96, 128, 164][smoothIdx];
   if (mcEffect) {
     mcEffect.parent && mcEffect.parent.remove(mcEffect);
     mcEffect.dispose && mcEffect.dispose();
@@ -438,7 +439,7 @@ function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
         0
       ))
     );
-    const subdivide = [40, 80, 160, 320, 480][smoothIdx];
+    const subdivide = [40, 80, 160, 320, 480, 640][smoothIdx];
     const smoothPts = curve.getPoints(subdivide);
     const smoothWidths = smoothPts.map((_, si) => {
       const t = si / subdivide;
@@ -487,7 +488,7 @@ function build3D(forceResolution) {
   }[currentMat] || { metalness: 0.9, roughness: 0.1 };
   const mat = new THREE.MeshStandardMaterial({ color, ...matParams });
 
-  const resolution = forceResolution || [28, 48, 72, 96, 128][smoothIdx];
+  const resolution = forceResolution || [28, 48, 72, 96, 128, 164][smoothIdx];
   mcEffect = new MarchingCubes(resolution, mat, true, true, 100000);
   mcEffect.isolation = 80;
 
@@ -503,7 +504,7 @@ function build3D(forceResolution) {
     for (let i = 0; i < n; i++) symCopies.push({ angle: (Math.PI * 2 * i) / n, mirror: false });
   }
 
-  const subdivide = [40, 80, 160, 320, 480][smoothIdx];
+  const subdivide = [40, 80, 160, 320, 480, 640][smoothIdx];
 
   for (const stroke of strokes) {
     const pts = stroke.pts;
@@ -619,10 +620,25 @@ document.getElementById('grid-toggle').addEventListener('change', e => {
 
 document.getElementById('bright-toggle').addEventListener('change', e => {
   const bright = e.target.checked;
-  scene.background = new THREE.Color(bright ? '#f0ede8' : '#0d0d0d');
-  document.body.style.background = bright ? '#e8e4de' : '#111';
-  document.querySelectorAll('.panel, #left-panel, #right-panel, #controls-panel').forEach(el => {
-    el.style.background = bright ? 'rgba(240,237,232,0.95)' : '';
+  const bg = bright ? '#e8e4de' : '#111111';
+  const panelBg = bright ? 'rgba(232,228,222,0.96)' : '';
+  const textColor = bright ? '#222' : '';
+  scene.background = new THREE.Color(bright ? '#eae6e0' : '#0d0d0d');
+  // Update canvas background
+  drawCanvas.style.background = bright ? '#f0ede8' : '#000';
+  dc.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  redrawAll();
+  document.body.style.background = bg;
+  document.body.style.color = textColor;
+  document.querySelectorAll('*').forEach(el => {
+    if (el.classList.contains('panel') || el.id === 'left-panel' || el.id === 'right-panel' || el.id === 'controls-row' || el.id === 'top-bar') {
+      el.style.background = panelBg;
+      el.style.color = textColor;
+    }
+  });
+  // Grid color
+  gridHelper.children && gridHelper.children.forEach(c => {
+    if (c.material) c.material.color.set(bright ? 0xaaaaaa : 0x333333);
   });
 });
 
@@ -674,7 +690,7 @@ document.getElementById('z-spread').addEventListener('input', e => {
 
 // Smooth: show label and auto-rebuild
 document.getElementById('smooth').addEventListener('input', e => {
-  const labels = ['Low', 'Med', 'High', 'Ultra', 'Max'];
+  const labels = ['Low', 'Med', 'High', 'Ultra', 'Max', 'Max+'];
   document.getElementById('smooth-val').textContent = labels[e.target.value];
   if (strokes.length) {
     clearTimeout(autoGenTimer);
