@@ -296,23 +296,24 @@ function moveDraw(e) {
   // If nearly still (very slow movement), start pooling
   if (speed < 0.3) {
     clearTimeout(poolTimer);
-    const maxPool = bs * 6;
+    const maxPool = bs * 10; // much larger pools
     function grow() {
       if (!isDrawing) return;
-      poolW = Math.min(poolW + bs * 0.25, maxPool);
+      poolW = Math.min(poolW + bs * 0.3, maxPool);
       currentStroke.push({ x: pos.x, y: pos.y, w: poolW });
       redrawAll();
-      poolTimer = setTimeout(grow, 35);
+      poolTimer = setTimeout(grow, 30);
     }
-    poolTimer = setTimeout(grow, 80);
+    poolTimer = setTimeout(grow, 60);
     lastX = pos.x; lastY = pos.y; lastT = now;
     return;
   }
 
-  // Normal movement — stop pooling, width follows speed
+  // Normal movement — stop pooling, width follows speed (fast=very thin)
   clearTimeout(poolTimer);
-  const targetW = Math.max(2, bs * (1.3 - Math.min(speed * 0.25, 1.1)));
-  poolW = bs * 0.6 + targetW * 0.4;
+  const minW = bs * 0.15; // very thin when fast
+  const targetW = Math.max(minW, bs * (1.5 - Math.min(speed * 0.4, 1.3)));
+  poolW = bs * 0.5 + targetW * 0.5;
 
   currentStroke.push({ x: pos.x, y: pos.y, w: poolW });
   lastX = pos.x; lastY = pos.y; lastT = now;
@@ -324,9 +325,12 @@ function endDraw(e) {
   clearTimeout(poolTimer);
   isDrawing = false;
   if (currentStroke.length > 1) {
-    // Taper end of stroke
+    // Taper end of stroke — thin wire-like ending
     const last = currentStroke[currentStroke.length - 1];
-    currentStroke.push({ x: last.x, y: last.y, w: Math.max(0.5, last.w * 0.3) });
+    // Add several taper points for smooth wire-pull effect
+    for (let t = 0.7; t >= 0.05; t -= 0.2) {
+      currentStroke.push({ x: last.x + (Math.random()-0.5)*2, y: last.y + (Math.random()-0.5)*2, w: Math.max(0.3, last.w * t) });
+    }
     strokes.push({ pts: applyTurbulence(currentStroke) });
     currentStroke = [];
     redrawAll();
@@ -405,7 +409,7 @@ function buildOvalTube(worldPts, widths, scale, radialSegs) {
   const normals = [];
   const indices = [];
   const n = worldPts.length;
-  const heightRatio = 0.9; // near-circular cross section, like liquid metal
+  const heightRatio = 1.0; // perfect circle cross-section, liquid metal
 
   // Compute tangents, normals, binormals via Frenet frames
   const tangents = [], norms = [], binorms = [];
