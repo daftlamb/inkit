@@ -668,8 +668,8 @@ function build3D(forceResolution) {
     });
 
     for (const copy of symCopies) {
-      const copyRaw = copy.mirror ? rawPts.map(p => new THREE.Vector3(-p.x, p.y, p.z)) : rawPts;
-      const curve = new THREE.CatmullRomCurve3(copyRaw);
+      const basePts = copy.mirror ? rawPts.map(p => new THREE.Vector3(-p.x, p.y, p.z)) : rawPts;
+      const curve = new THREE.CatmullRomCurve3(basePts);
       const smoothPts = curve.getPoints(subdivide);
       const smoothWidths = smoothPts.map((_, si) => {
         const t = si / subdivide;
@@ -678,21 +678,20 @@ function build3D(forceResolution) {
         return pts[srcIdx].w * (1 - frac) + pts[srcIdx + 1].w * frac;
       });
 
+      const strengthMult = parseFloat(document.getElementById('strength').value) / 100;
       for (let i = 0; i < smoothPts.length; i++) {
-        const p = smoothPts[i];
-        // Map from [-0.5,0.5] to [0,1] for MarchingCubes
-        const x = p.x + 0.5;
-        const y = p.y + 0.5;
-        const z = p.z + 0.5;
+        let px = smoothPts[i].x, py = smoothPts[i].y, pz = smoothPts[i].z;
+        // Apply rotation around Y axis for symmetry copies
+        if (copy.angle !== 0) {
+          const cos = Math.cos(copy.angle), sin = Math.sin(copy.angle);
+          const rx = px * cos - pz * sin;
+          const rz = px * sin + pz * cos;
+          px = rx; pz = rz;
+        }
+        const x = px + 0.5, y = py + 0.5, z = pz + 0.5;
         if (x < 0.01 || x > 0.99 || y < 0.01 || y > 0.99 || z < 0.01 || z > 0.99) continue;
-        const strengthMult = parseFloat(document.getElementById('strength').value) / 100;
         const strength = Math.max(0.005, smoothWidths[i] * scale * strengthMult);
         mcEffect.addBall(x, y, z, strength, 12);
-      }
-
-      if (copy.angle !== 0) {
-        // Rotate blobs by re-adding with rotated coords (approximate)
-        // MarchingCubes doesn't support rotation natively; skip for now
       }
     }
   }
