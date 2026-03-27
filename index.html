@@ -455,19 +455,20 @@ function penUp(e) {
 
 function penCommit() {
   if (penAnchors.length < 2) { penAnchors = []; redrawAll(); return; }
-  // Sample bezier path into stroke points
-  const bs = parseFloat(document.getElementById('brush-size').value);
   const pts = [];
   for (let i = 0; i < penAnchors.length - 1; i++) {
     const a = penAnchors[i], b = penAnchors[i + 1];
     const cp1 = a.cpOut || a;
     const cp2 = b.cpIn  || b;
     const steps = 40;
-    for (let t = 0; t <= 1; t += 1 / steps) {
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
       const mt = 1 - t;
       const x = mt*mt*mt*a.x + 3*mt*mt*t*cp1.x + 3*mt*t*t*cp2.x + t*t*t*b.x;
       const y = mt*mt*mt*a.y + 3*mt*mt*t*cp1.y + 3*mt*t*t*cp2.y + t*t*t*b.y;
-      pts.push({ x, y, w: bs });
+      // Interpolate w between anchor a and b
+      const w = a.w * (1 - t) + b.w * t;
+      pts.push({ x, y, w });
     }
   }
   strokes.push({ pts: applyTurbulence(pts) });
