@@ -84,6 +84,7 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
   <div class="sep"></div>
   <button class="act-btn" id="btn-clear">Clear</button>
   <button class="act-btn" id="btn-generate">Generate 3D</button>
+  <button class="act-btn" id="btn-render" style="border-color:#80d0ff;color:#80d0ff;">Render HD</button>
   <button class="act-btn" id="btn-export">Export PNG</button>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="bloom-toggle"/> Bloom
@@ -461,7 +462,7 @@ function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
   return mcEffect;
 }
 
-function build3D() {
+function build3D(forceResolution) {
   document.getElementById('hint').style.display = 'none';
 
   // Clear old sculpture
@@ -486,7 +487,7 @@ function build3D() {
   }[currentMat] || { metalness: 0.9, roughness: 0.1 };
   const mat = new THREE.MeshStandardMaterial({ color, ...matParams });
 
-  const resolution = [28, 40, 56, 72][smoothIdx];
+  const resolution = forceResolution || [28, 40, 56, 72][smoothIdx];
   mcEffect = new MarchingCubes(resolution, mat, true, true, 100000);
   mcEffect.isolation = 80;
 
@@ -596,6 +597,16 @@ document.getElementById('btn-clear').addEventListener('click', () => {
 });
 
 document.getElementById('btn-generate').addEventListener('click', build3D);
+document.getElementById('btn-render').addEventListener('click', () => {
+  const btn = document.getElementById('btn-render');
+  btn.textContent = 'Rendering...';
+  btn.disabled = true;
+  setTimeout(() => {
+    build3D(96);
+    btn.textContent = 'Render HD';
+    btn.disabled = false;
+  }, 50);
+});
 
 document.getElementById('bloom-toggle').addEventListener('change', e => {
   bloomPass.enabled = e.target.checked;
