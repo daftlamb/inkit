@@ -404,48 +404,63 @@ function resizeThree() {
 // ─── 3D BUILD ─────────────────────────────────────────────────────────────────
 let sculpture = null;
 
-// Build ribbon geometry: flat strip along path with variable width
-function buildRibbonGeometry(worldPts, widths, scale) {
+// Build flat oval tube: custom ellipse cross-section via FrenetFrames
+function buildOvalTube(worldPts, widths, scale, radialSegs) {
   const positions = [];
   const normals = [];
   const indices = [];
-  
-  for (let i = 0; i < worldPts.length; i++) {
+  const n = worldPts.length;
+  const heightRatio = 0.35; // height = width * this ratio (flat/mud-like)
+
+  // Compute tangents, normals, binormals via Frenet frames
+  const tangents = [], norms = [], binorms = [];
+  for (let i = 0; i < n; i++) {
+    let t;
+    if (i === 0) t = new THREE.Vector3().subVectors(worldPts[1], worldPts[0]);
+    else if (i === n - 1) t = new THREE.Vector3().subVectors(worldPts[n-1], worldPts[n-2]);
+    else t = new THREE.Vector3().subVectors(worldPts[i+1], worldPts[i-1]);
+    tangents.push(t.normalize());
+    const up = new THREE.Vector3(0, 1, 0);
+    const b = new THREE.Vector3().crossVectors(t, up).normalize();
+    if (b.length() < 0.001) b.set(1, 0, 0);
+    binorms.push(b);
+    norms.push(new THREE.Vector3().crossVectors(b, t).normalize());
+  }
+
+  // Generate ring vertices at each path point
+  for (let i = 0; i < n; i++) {
     const p = worldPts[i];
-    const w = widths[i] * scale * 0.5; // half-width for each side
-    
-    // Compute tangent direction
-    let tangent;
-    if (i === 0) {
-      tangent = new THREE.Vector3().subVectors(worldPts[1], p).normalize();
-    } else if (i === worldPts.length - 1) {
-      tangent = new THREE.Vector3().subVectors(p, worldPts[i - 1]).normalize();
-    } else {
-      tangent = new THREE.Vector3().subVectors(worldPts[i + 1], worldPts[i - 1]).normalize();
-    }
-    
-    // Perpendicular vector (cross with up)
-    const perp = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize();
-    if (perp.length() < 0.01) {
-      perp.set(1, 0, 0); // fallback if tangent is vertical
-    }
-    
-    // Two vertices: left and right edge
-    const left = new THREE.Vector3().addVectors(p, perp.clone().multiplyScalar(w));
-    const right = new THREE.Vector3().addVectors(p, perp.clone().multiplyScalar(-w));
-    
-    positions.push(left.x, left.y, left.z);
-    positions.push(right.x, right.y, right.z);
-    normals.push(0, 1, 0, 0, 1, 0); // flat ribbon faces up
-    
-    // Build quad faces
-    if (i > 0) {
-      const base = (i - 1) * 2;
-      indices.push(base, base + 1, base + 2);
-      indices.push(base + 1, base + 3, base + 2);
+    const hw = Math.max(0.008, widths[i] * scale * 0.5); // half-width
+    const hh = hw * heightRatio; // half-height
+    for (let j = 0; j <= radialSegs; j++) {
+      const theta = (j / radialSegs) * Math.PI * 2;
+      const ox = Math.cos(theta) * hw;
+      const oy = Math.sin(theta) * hh;
+      const vx = p.x + binorms[i].x * ox + norms[i].x * oy;
+      const vy = p.y + binorms[i].y * ox + norms[i].y * oy;
+      const vz = p.z + binorms[i].z * ox + norms[i].z * oy;
+      positions.push(vx, vy, vz);
+      // Normal points outward from ellipse center
+      const nx = binorms[i].x * Math.cos(theta) + norms[i].x * Math.sin(theta);
+      const ny = binorms[i].y * Math.cos(theta) + norms[i].y * Math.sin(theta);
+      const nz = binorms[i].z * Math.cos(theta) + norms[i].z * Math.sin(theta);
+      normals.push(nx, ny, nz);
     }
   }
-  
+
+  // Build quad faces between rings
+  const ringSize = radialSegs + 1;
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < radialSegs; j++) {
+      const a = i * ringSize + j;
+      const b = a + 1;
+      const c = (i + 1) * ringSize + j;
+      const d = c + 1;
+      indices.push(a, c, b);
+      indices.push(b, c, d);
+    }
+  }
+
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
@@ -515,11 +530,12 @@ function build3D() {
         matte:  { metalness: 0.0, roughness: 0.85, envMapIntensity: 0.3 },
         gold:   { metalness: 1.0, roughness: 0.15, envMapIntensity: 1.5 },
       }[currentMat] || { metalness: 0.9, roughness: 0.1 };
-      const mat = new THREE.MeshStandardMaterial({ color, ...matParams, side: THREE.DoubleSide });
+      const mat = new THREE.MeshStandardMaterial({ color, ...matParams });
 
-      // Smooth: controls CatmullRom subdivision
+      // Smooth: controls CatmullRom subdivision + radial segments
       const smoothIdx = parseInt(document.getElementById('smooth').value);
       const subdivide = [20, 40, 80, 160][smoothIdx];
+      const radialSegs = [8, 12, 16, 24][smoothIdx];
 
       // Subdivide stroke via CatmullRom for smooth path
       const curve = new THREE.CatmullRomCurve3(copyPts);
@@ -532,12 +548,11 @@ function build3D() {
         return pts[srcIdx].w * (1 - frac) + pts[srcIdx + 1].w * frac;
       });
 
-      // Build ribbon geometry (flat strip)
-      const ribbonGeo = buildRibbonGeometry(smoothPts, smoothWidths, scale);
-      ribbonGeo.computeVertexNormals();
-      const ribbon = new THREE.Mesh(ribbonGeo, mat);
-      if (copy.angle !== 0) ribbon.rotation.y = copy.angle;
-      group.add(ribbon);
+      // Build oval tube geometry (flat ellipse cross-section)
+      const tubeGeo = buildOvalTube(smoothPts, smoothWidths, scale, radialSegs);
+      const tube = new THREE.Mesh(tubeGeo, mat);
+      if (copy.angle !== 0) tube.rotation.y = copy.angle;
+      group.add(tube);
     }
   }
 
