@@ -51,9 +51,15 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
 #three-canvas{display:block;width:100%;height:100%;}
 #mat-panel{
   position:absolute;top:12px;right:12px;
-  display:flex;gap:6px;padding:6px;
+  display:flex;gap:6px;padding:6px;align-items:center;
   background:rgba(26,26,26,0.85);border:1px solid #333;border-radius:3px;
   backdrop-filter:blur(4px);
+}
+#light-panel{
+  position:absolute;bottom:16px;right:12px;
+  display:flex;flex-direction:column;gap:5px;padding:8px 10px;
+  background:rgba(26,26,26,0.85);border:1px solid #333;border-radius:3px;
+  backdrop-filter:blur(4px);min-width:140px;
 }
 #hint{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
@@ -165,6 +171,17 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
       <button class="mat-btn active" data-mat="chrome">Chrome</button>
       <button class="mat-btn" data-mat="matte">Matte</button>
       <button class="mat-btn" data-mat="gold">Gold</button>
+      <div style="width:1px;height:16px;background:#333;margin:0 2px;"></div>
+      <button class="mat-btn" id="btn-reset-cam" title="Reset to front view">⊙</button>
+      <button class="mat-btn" id="btn-autorotate" title="Toggle auto-rotate" style="border-color:#f0c040;color:#f0c040;">↻</button>
+    </div>
+    <div id="light-panel">
+      <div style="font-size:10px;color:#666;margin-bottom:4px;letter-spacing:1px;">LIGHT</div>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Azimuth<input type="range" id="light-az" min="0" max="360" value="45" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Elevation<input type="range" id="light-el" min="0" max="90" value="60" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Intensity<input type="range" id="light-int" min="0" max="200" value="80" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Ambient<input type="range" id="light-amb" min="0" max="100" value="30" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Env<input type="range" id="light-env" min="0" max="30" value="4" style="width:80px;"/></label>
     </div>
     <div id="hint">Draw on the left →<br/>then Generate 3D</div>
   </div>
@@ -586,6 +603,37 @@ controls.autoRotateSpeed = 1.5;
 // Environment
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.04;
+
+// Lights
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+keyLight.position.set(2, 4, 3);
+scene.add(keyLight);
+const ambLight = new THREE.AmbientLight(0xffffff, 0.3);
+scene.add(ambLight);
+
+function updateLights() {
+  const az = parseFloat(document.getElementById('light-az').value) * Math.PI / 180;
+  const el = parseFloat(document.getElementById('light-el').value) * Math.PI / 180;
+  const dist = 6;
+  keyLight.position.set(
+    dist * Math.cos(el) * Math.sin(az),
+    dist * Math.sin(el),
+    dist * Math.cos(el) * Math.cos(az)
+  );
+  keyLight.intensity = parseFloat(document.getElementById('light-int').value) / 100;
+  ambLight.intensity = parseFloat(document.getElementById('light-amb').value) / 100;
+  const envI = parseFloat(document.getElementById('light-env').value) / 10;
+  scene.environmentIntensity = envI;
+  if (sculpture) {
+    sculpture.traverse(c => {
+      if (c.material) { c.material.envMapIntensity = envI * 2; c.material.needsUpdate = true; }
+    });
+  }
+}
+['light-az','light-el','light-int','light-amb','light-env'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateLights);
+});
 
 // Post-processing
 const composer = new EffectComposer(renderer);
@@ -946,6 +994,21 @@ document.querySelectorAll('.mat-btn').forEach(btn => {
     }
     if (sculpture) build3D(); // rebuild with new material
   });
+});
+
+// Reset camera to front view
+document.getElementById('btn-reset-cam').addEventListener('click', () => {
+  camera.position.set(0, 0, 3.5);
+  camera.up.set(0, 1, 0);
+  controls.target.set(0, 0, 0);
+  controls.update();
+});
+
+// Toggle auto-rotate
+document.getElementById('btn-autorotate').addEventListener('click', function() {
+  controls.autoRotate = !controls.autoRotate;
+  this.style.borderColor = controls.autoRotate ? '#f0c040' : '#444';
+  this.style.color = controls.autoRotate ? '#f0c040' : '#444';
 });
 
 // Slider bindings
