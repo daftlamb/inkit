@@ -19,6 +19,12 @@ body{background:#111;color:#ccc;font-family:monospace;height:100vh;overflow:hidd
 }
 .sym-btn.active{background:#3a2800;border-color:#f0c040;color:#f0c040;}
 .sym-btn:hover{background:#2a2a2a;}
+.mat-btn{
+  background:#1a1a1a;border:1px solid #444;color:#aaa;
+  padding:5px 12px;font-size:10px;cursor:pointer;border-radius:2px;font-family:monospace;
+}
+.mat-btn.active{background:#2a2a00;border-color:#f0c040;color:#f0c040;}
+.mat-btn:hover{background:#2a2a2a;}
 .sep{width:1px;height:20px;background:#333;margin:0 4px;}
 .act-btn{
   background:#2a2a2a;border:1px solid #555;color:#ccc;
@@ -43,6 +49,12 @@ input[type=range]{width:80px;accent-color:#f0c040;}
 input[type=color]{width:26px;height:20px;border:none;background:none;cursor:pointer;padding:0;}
 #right{width:50%;position:relative;}
 #three-canvas{display:block;width:100%;height:100%;}
+#mat-panel{
+  position:absolute;top:12px;right:12px;
+  display:flex;gap:6px;padding:6px;
+  background:rgba(26,26,26,0.85);border:1px solid #333;border-radius:3px;
+  backdrop-filter:blur(4px);
+}
 #hint{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
   color:#333;font-size:12px;text-align:center;pointer-events:none;
@@ -68,12 +80,6 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
     <button class="sym-btn" data-sym="6">6</button>
     <button class="sym-btn" data-sym="8">8</button>
     <button class="sym-btn" data-sym="mirror">Mirror</button>
-  </div>
-  <div class="sep"></div>
-  <div style="display:flex;gap:4px;">
-    <button class="sym-btn active" data-mat="chrome">Chrome</button>
-    <button class="sym-btn" data-mat="matte">Matte</button>
-    <button class="sym-btn" data-mat="gold">Gold</button>
   </div>
   <div class="sep"></div>
   <button class="act-btn" id="btn-clear">Clear</button>
@@ -119,6 +125,11 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
   </div>
   <div id="right">
     <canvas id="three-canvas"></canvas>
+    <div id="mat-panel">
+      <button class="mat-btn active" data-mat="chrome">Chrome</button>
+      <button class="mat-btn" data-mat="matte">Matte</button>
+      <button class="mat-btn" data-mat="gold">Gold</button>
+    </div>
     <div id="hint">Draw on the left →<br/>then Generate 3D</div>
   </div>
 </div>
@@ -448,23 +459,37 @@ function build3D() {
         copyPts = worldPts.map(p => new THREE.Vector3(-p.x, p.y, p.z));
       }
 
-      const curve = new THREE.CatmullRomCurve3(copyPts);
-      const tubeGeo = new THREE.TubeGeometry(curve, Math.max(20, pts.length), tubeR, 12, false);
       const matParams = {
         chrome: { metalness: 1.0, roughness: 0.0,  envMapIntensity: 2.0 },
         matte:  { metalness: 0.0, roughness: 0.85, envMapIntensity: 0.3 },
         gold:   { metalness: 1.0, roughness: 0.15, envMapIntensity: 1.5 },
       }[currentMat] || { metalness: 0.9, roughness: 0.1 };
-      const tubeMat = new THREE.MeshStandardMaterial({
-        color,
-        ...matParams,
-      });
-      const tube = new THREE.Mesh(tubeGeo, tubeMat);
+      const tubeMat = new THREE.MeshStandardMaterial({ color, ...matParams });
 
-      if (copy.angle !== 0) {
-        tube.rotation.y = copy.angle;
+      // Build variable-radius tube: split stroke into segments by width
+      // Each segment's radius = point.w (brush width) mapped to world scale
+      const segGroup = new THREE.Group();
+      const minPts = 3;
+      const step = Math.max(1, Math.floor(pts.length / 60)); // max 60 segments
+      for (let si = 0; si < copyPts.length - step; si += step) {
+        const end = Math.min(si + step + 1, copyPts.length);
+        const segPts = copyPts.slice(si, end);
+        if (segPts.length < 2) continue;
+        // Average width of this segment's source points
+        const avgW = pts.slice(si, end).reduce((s, p) => s + p.w, 0) / (end - si);
+        const r = Math.max(0.005, avgW * scale * 0.5); // brush w → world radius
+        const tubeSeg = new THREE.TubeGeometry(
+          new THREE.CatmullRomCurve3(segPts),
+          Math.max(4, Math.floor(step * 1.5)),
+          r,
+          16,  // high radial segments for smooth circle
+          false
+        );
+        segGroup.add(new THREE.Mesh(tubeSeg, tubeMat));
       }
-      group.add(tube);
+
+      if (copy.angle !== 0) segGroup.rotation.y = copy.angle;
+      group.add(segGroup);
     }
   }
 
@@ -494,13 +519,18 @@ function animate() {
 animate();
 
 // ─── CONTROLS ────────────────────────────────────────────────────────────────
-document.querySelectorAll('.sym-btn').forEach(btn => {
+document.querySelectorAll('[data-sym]').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.sym-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('[data-sym]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const v = btn.dataset.sym;
     symmetry = (v === 'free' || v === 'mirror') ? v : parseInt(v);
     redrawAll();
+    // Auto-rebuild 3D when symmetry changes
+    if (strokes.length) {
+      clearTimeout(autoGenTimer);
+      autoGenTimer = setTimeout(build3D, 300);
+    }
   });
 });
 
@@ -523,9 +553,9 @@ document.getElementById('grid-toggle').addEventListener('change', e => {
 });
 
 // Material buttons
-document.querySelectorAll('[data-mat]').forEach(btn => {
+document.querySelectorAll('.mat-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('[data-mat]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.mat-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentMat = btn.dataset.mat;
     // Chrome: auto bloom on + high exposure; Matte: bloom off
