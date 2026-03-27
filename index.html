@@ -86,6 +86,11 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
   <button class="act-btn" id="btn-generate">Generate 3D</button>
   <button class="act-btn" id="btn-render" style="border-color:#80d0ff;color:#80d0ff;">Render HD</button>
   <button class="act-btn" id="btn-export">Export PNG</button>
+  <button class="act-btn" id="btn-export-glb" style="border-color:#a0e0a0;color:#a0e0a0;">Export GLB</button>
+  <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
+    <input type="checkbox" id="ref-img-toggle"/> Ref Image
+    <input type="file" id="ref-img-input" accept="image/*" style="display:none"/>
+  </label>
   <div class="sep"></div>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="radio" name="draw-mode" id="mode-brush" checked/> Brush
@@ -101,6 +106,9 @@ input[type=color]{width:26px;height:20px;border:none;background:none;cursor:poin
   </label>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="bright-toggle"/> Bright
+  </label>
+  <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
+    <input type="checkbox" id="grain-toggle"/> Grain
   </label>
 </div>
 
@@ -270,6 +278,13 @@ function draw2DGrid() {
 
 function redrawAll() {
   dc.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  // Reference image underlay
+  if (refImg) {
+    dc.save();
+    dc.globalAlpha = 0.35;
+    dc.drawImage(refImg, 0, 0, drawCanvas.width, drawCanvas.height);
+    dc.restore();
+  }
   if (document.getElementById('grid-toggle')?.checked) draw2DGrid();
   // Completed strokes
   for (const stroke of strokes) {
@@ -867,7 +882,7 @@ document.getElementById('strength').addEventListener('input', e => {
   }
 });
 
-// Export
+// Export PNG
 document.getElementById('btn-export').addEventListener('click', () => {
   renderer.render(scene, camera);
   threeCanvas.toBlob(blob => {
@@ -877,6 +892,62 @@ document.getElementById('btn-export').addEventListener('click', () => {
     a.click();
     URL.revokeObjectURL(a.href);
   });
+});
+
+// Export GLB
+document.getElementById('btn-export-glb').addEventListener('click', async () => {
+  if (!sculpture) return;
+  const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+  const exporter = new GLTFExporter();
+  exporter.parse(sculpture, glb => {
+    const blob = new Blob([glb], { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'inkit.glb';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, err => console.error(err), { binary: true });
+});
+
+// Reference image (background overlay on draw canvas)
+let refImg = null;
+document.getElementById('ref-img-toggle').addEventListener('change', e => {
+  if (e.target.checked) {
+    document.getElementById('ref-img-input').click();
+  } else {
+    refImg = null;
+    redrawAll();
+  }
+});
+document.getElementById('ref-img-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => { refImg = img; redrawAll(); };
+  img.src = URL.createObjectURL(file);
+});
+
+// Grain normalMap
+function makeGrainTexture() {
+  const size = 256;
+  const data = new Uint8Array(size * size * 3);
+  for (let i = 0; i < data.length; i += 3) {
+    const v = 128 + (Math.random() - 0.5) * 60;
+    data[i] = v; data[i+1] = v; data[i+2] = 255; // mostly Z-facing normal
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(8, 8);
+  tex.needsUpdate = true;
+  return tex;
+}
+const grainTex = makeGrainTexture();
+
+document.getElementById('grain-toggle').addEventListener('change', e => {
+  if (!sculpture?.material) return;
+  sculpture.material.normalMap = e.target.checked ? grainTex : null;
+  sculpture.material.normalScale.set(0.3, 0.3);
+  sculpture.material.needsUpdate = true;
 });
 
 // ─── RESIZE ───────────────────────────────────────────────────────────────────
