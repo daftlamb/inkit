@@ -209,6 +209,8 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
       <button class="mat-btn active" data-mat="chrome">Chrome</button>
       <button class="mat-btn" data-mat="matte">Matte</button>
       <button class="mat-btn" data-mat="gold">Gold</button>
+      <button class="mat-btn" data-mat="liquid" style="border-color:#c0e0ff;color:#c0e0ff;">Liquid</button>
+      <button class="mat-btn" data-mat="custom">Custom</button>
       <div style="width:1px;height:16px;background:#333;margin:0 2px;"></div>
       <button class="mat-btn" id="btn-reset-cam" title="Reset to front view">⊙</button>
       <button class="mat-btn" id="btn-autorotate" title="Toggle auto-rotate" style="border-color:#f0c040;color:#f0c040;">↻</button>
@@ -223,6 +225,11 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
       <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Intensity<input type="range" id="light-int" min="0" max="200" value="80" style="width:80px;"/></label>
       <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Ambient<input type="range" id="light-amb" min="0" max="100" value="30" style="width:80px;"/></label>
       <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Env<input type="range" id="light-env" min="0" max="30" value="4" style="width:80px;"/></label>
+      <div style="height:1px;background:#333;margin:4px 0;"></div>
+      <div style="font-size:10px;color:#666;margin-bottom:2px;letter-spacing:1px;">MATERIAL</div>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Metalness<input type="range" id="mat-metalness" min="0" max="100" value="100" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Roughness<input type="range" id="mat-roughness" min="0" max="100" value="0" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Clearcoat<input type="range" id="mat-clearcoat" min="0" max="100" value="0" style="width:80px;"/></label>
     </div>
     <div id="hint">Draw on the left →<br/>then Generate 3D</div>
   </div>
@@ -702,6 +709,23 @@ function updateLights() {
   document.getElementById(id).addEventListener('input', updateLights);
 });
 
+// Material sliders live update
+['mat-metalness','mat-roughness','mat-clearcoat'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    currentMat = 'custom';
+    document.querySelectorAll('.mat-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mat === 'custom');
+    });
+    if (sculpture) {
+      const color = new THREE.Color(document.getElementById('model-color').value);
+      const mat = buildMaterial(color);
+      sculpture.traverse(obj => {
+        if (obj.material) { obj.material.dispose(); obj.material = mat; }
+      });
+    }
+  });
+});
+
 // Post-processing
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera);
@@ -786,12 +810,27 @@ function build3D(forceResolution) {
 
 // ─── EXTRUDE MODE ─────────────────────────────────────────────────────────────
 function buildMaterial(color) {
-  const matParams = {
-    chrome: { metalness: 1.0, roughness: 0.0,  envMapIntensity: 2.0 },
-    matte:  { metalness: 0.0, roughness: 0.85, envMapIntensity: 0.3 },
-    gold:   { metalness: 1.0, roughness: 0.15, envMapIntensity: 1.5 },
-  }[currentMat] || { metalness: 0.9, roughness: 0.1 };
-  return new THREE.MeshStandardMaterial({ color, ...matParams });
+  const metalness = parseFloat(document.getElementById('mat-metalness').value) / 100;
+  const roughness = parseFloat(document.getElementById('mat-roughness').value) / 100;
+  const clearcoat = parseFloat(document.getElementById('mat-clearcoat').value) / 100;
+
+  const presets = {
+    chrome:  { metalness: 1.0,  roughness: 0.0,  envMapIntensity: 3.0, clearcoat: 0.5 },
+    matte:   { metalness: 0.0,  roughness: 0.85, envMapIntensity: 0.4, clearcoat: 0.0 },
+    gold:    { metalness: 1.0,  roughness: 0.15, envMapIntensity: 2.0, clearcoat: 0.3 },
+    liquid:  { metalness: 1.0,  roughness: 0.02, envMapIntensity: 4.0, clearcoat: 1.0, clearcoatRoughness: 0.05 },
+    custom:  { metalness, roughness, envMapIntensity: 2.0, clearcoat },
+  };
+  const p = presets[currentMat] || presets.chrome;
+
+  // Sync sliders to preset values (except custom)
+  if (currentMat !== 'custom') {
+    document.getElementById('mat-metalness').value = Math.round(p.metalness * 100);
+    document.getElementById('mat-roughness').value = Math.round(p.roughness * 100);
+    document.getElementById('mat-clearcoat').value = Math.round(p.clearcoat * 100);
+  }
+
+  return new THREE.MeshPhysicalMaterial({ color, ...p });
 }
 function buildExtrude() {
   document.getElementById('hint').style.display = 'none';
