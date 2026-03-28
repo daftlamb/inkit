@@ -190,8 +190,12 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
         <span id="strength-val">0.06</span>
       </div>
       <div class="ctrl">
-        <label>Color</label>
+        <label>Brush Color</label>
         <input type="color" id="stroke-color" value="#c8a020"/>
+      </div>
+      <div class="ctrl">
+        <label>Model Color</label>
+        <input type="color" id="model-color" value="#c8a020"/>
       </div>
     </div>
   </div>
@@ -334,7 +338,7 @@ function draw2DGrid() {
 
   // Symmetry guide lines
   if (symmetry !== 'free') {
-    dc.strokeStyle = 'rgba(240,192,64,0.25)';
+    dc.strokeStyle = isBright ? 'rgba(80,60,0,0.35)' : 'rgba(240,192,64,0.25)';
     dc.lineWidth = 1;
     dc.setLineDash([4, 4]);
     if (symmetry === 'mirror') {
@@ -793,7 +797,7 @@ function buildExtrude() {
   if (!strokes.length) return;
 
   const cw = drawCanvas.width, ch = drawCanvas.height;
-  const color = new THREE.Color(document.getElementById('stroke-color').value);
+  const color = new THREE.Color(document.getElementById('model-color').value);
   const group = new THREE.Group();
 
   for (const stroke of strokes) {
@@ -857,7 +861,7 @@ function buildBlob(forceResolution) {
   if (mcEffect) { mcEffect.parent && mcEffect.parent.remove(mcEffect); mcEffect = null; }
   if (!strokes.length) return;
 
-  const color = new THREE.Color(document.getElementById('stroke-color').value);
+  const color = new THREE.Color(document.getElementById('model-color').value);
   const smoothIdx = parseInt(document.getElementById('smooth').value);
   const zSpread = parseFloat(document.getElementById('z-spread').value) / 100 * 3.0;
   const cw = drawCanvas.width, ch = drawCanvas.height;
@@ -1196,6 +1200,15 @@ document.getElementById('grain-toggle').addEventListener('change', e => {
   sculpture.material.normalMap = e.target.checked ? grainTex : null;
   sculpture.material.normalScale.set(0.3, 0.3);
   sculpture.material.needsUpdate = true;
+});
+
+// Model color live update
+document.getElementById('model-color').addEventListener('input', e => {
+  if (!sculpture) return;
+  const c = new THREE.Color(e.target.value);
+  sculpture.traverse(obj => {
+    if (obj.material) { obj.material.color.set(c); obj.material.needsUpdate = true; }
+  });
 });
 
 // ─── RESIZE ───────────────────────────────────────────────────────────────────
