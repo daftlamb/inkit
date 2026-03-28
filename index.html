@@ -327,8 +327,8 @@ function draw2DGrid() {
   const cw = drawCanvas.width, ch = drawCanvas.height;
   const cx = cw / 2, cy = ch / 2;
   dc.save();
-  dc.strokeStyle = '#222';
-  dc.lineWidth = 0.5;
+  dc.strokeStyle = isBright ? 'rgba(0,0,0,0.07)' : '#222';
+  dc.lineWidth = isBright ? 0.3 : 0.5;
   dc.globalAlpha = 1;
   for (let x = 0; x < cw; x += step) {
     dc.beginPath(); dc.moveTo(x, 0); dc.lineTo(x, ch); dc.stroke();
