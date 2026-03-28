@@ -194,6 +194,16 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
         <span id="strength-val">0.06</span>
       </div>
       <div class="ctrl">
+        <label>Loose</label>
+        <input type="range" id="loose" min="20" max="300" value="80"/>
+        <span id="loose-val">80</span>
+      </div>
+      <div class="ctrl">
+        <label>Seed</label>
+        <input type="range" id="seed-slider" min="0" max="999" value="0"/>
+        <button class="act-btn" id="btn-random-seed" style="padding:2px 8px;font-size:10px;">🎲</button>
+      </div>
+      <div class="ctrl">
         <label>Brush Color</label>
         <input type="color" id="stroke-color" value="#c8a020"/>
       </div>
@@ -273,8 +283,9 @@ function resizeDrawCanvas() {
 }
 
 // Simple noise for turbulence
+let currentSeed = 0;
 function noise(x, y) {
-  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  const n = Math.sin((x + currentSeed * 17.3) * 127.1 + (y + currentSeed * 31.9) * 311.7) * 43758.5453;
   return (n - Math.floor(n)) * 2 - 1;
 }
 
@@ -766,7 +777,7 @@ function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
     mcEffect.dispose && mcEffect.dispose();
   }
   mcEffect = new MarchingCubes(resolution, mat, true, true, 500000);
-  mcEffect.isolation = 80;
+  mcEffect.isolation = parseFloat(document.getElementById("loose").value);
 
   // Collect all blob positions from all strokes
   for (const stroke of allStrokes) {
@@ -920,7 +931,7 @@ function buildBlob(forceResolution) {
 
   const resolution = forceResolution || [28, 48, 72, 96, 128, 192][smoothIdx];
   mcEffect = new MarchingCubes(resolution, mat, true, true, 500000);
-  mcEffect.isolation = 80;
+  mcEffect.isolation = parseFloat(document.getElementById("loose").value);
 
   // Build symmetry copies
   const symCopies = [];
@@ -1174,6 +1185,27 @@ function bindSlider(id, valId, factor, digits) {
 bindSlider('brush-size', 'brush-val', 0, 0);
 bindSlider('turbulence', 'turb-val', 0, 0);
 bindSlider('tube-radius', 'tube-val', 0.001, 3);
+
+// Loose slider — update isolation and re-run MarchingCubes update only
+document.getElementById('loose').addEventListener('input', e => {
+  document.getElementById('loose-val').textContent = e.target.value;
+  if (mcEffect) {
+    mcEffect.isolation = parseFloat(e.target.value);
+    mcEffect.update();
+  }
+});
+
+// Seed slider + random button
+document.getElementById('seed-slider').addEventListener('input', e => {
+  currentSeed = parseInt(e.target.value);
+  if (strokes.length) { clearTimeout(autoGenTimer); autoGenTimer = setTimeout(build3D, 200); }
+});
+document.getElementById('btn-random-seed').addEventListener('click', () => {
+  const s = Math.floor(Math.random() * 1000);
+  document.getElementById('seed-slider').value = s;
+  currentSeed = s;
+  if (strokes.length) { clearTimeout(autoGenTimer); autoGenTimer = setTimeout(build3D, 200); }
+});
 
 // Z-spread: show value and auto-rebuild on change
 document.getElementById('z-spread').addEventListener('input', e => {
