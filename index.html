@@ -210,7 +210,8 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
       <button class="mat-btn" id="btn-reset-cam" title="Reset to front view">⊙</button>
       <button class="mat-btn" id="btn-autorotate" title="Toggle auto-rotate" style="border-color:#f0c040;color:#f0c040;">↻</button>
       <div style="width:1px;height:16px;background:#333;margin:0 2px;"></div>
-      <input type="color" id="bg-color" value="#111111" title="Background color" style="width:22px;height:22px;border:1px solid #444;background:none;cursor:pointer;padding:0;border-radius:2px;"/>
+      <input type="color" id="bg-color" value="#111111" title="Background color (top)" style="width:22px;height:22px;border:1px solid #444;background:none;cursor:pointer;padding:0;border-radius:2px;"/>
+      <input type="color" id="bg-color2" value="#111111" title="Background color (bottom)" style="width:22px;height:22px;border:1px solid #444;background:none;cursor:pointer;padding:0;border-radius:2px;"/>
     </div>
     <div id="light-panel">
       <div style="font-size:10px;color:#666;margin-bottom:4px;letter-spacing:1px;">LIGHT</div>
@@ -1086,9 +1087,27 @@ document.getElementById('btn-autorotate').addEventListener('click', function() {
   this.style.color = controls.autoRotate ? '#f0c040' : '#444';
 });
 
-document.getElementById('bg-color').addEventListener('input', e => {
-  scene.background = new THREE.Color(e.target.value);
-});
+function updateBgGradient() {
+  const c1 = document.getElementById('bg-color').value;
+  const c2 = document.getElementById('bg-color2').value;
+  if (c1 === c2) {
+    scene.background = new THREE.Color(c1);
+    return;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 2; canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 128);
+  grad.addColorStop(0, c1);
+  grad.addColorStop(1, c2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 2, 128);
+  const tex = new THREE.CanvasTexture(canvas);
+  scene.background = tex;
+}
+
+document.getElementById('bg-color').addEventListener('input', updateBgGradient);
+document.getElementById('bg-color2').addEventListener('input', updateBgGradient);
 
 // Slider bindings
 function bindSlider(id, valId, factor, digits) {
