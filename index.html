@@ -209,6 +209,8 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
       <div style="width:1px;height:16px;background:#333;margin:0 2px;"></div>
       <button class="mat-btn" id="btn-reset-cam" title="Reset to front view">⊙</button>
       <button class="mat-btn" id="btn-autorotate" title="Toggle auto-rotate" style="border-color:#f0c040;color:#f0c040;">↻</button>
+      <div style="width:1px;height:16px;background:#333;margin:0 2px;"></div>
+      <input type="color" id="bg-color" value="#111111" title="Background color" style="width:22px;height:22px;border:1px solid #444;background:none;cursor:pointer;padding:0;border-radius:2px;"/>
     </div>
     <div id="light-panel">
       <div style="font-size:10px;color:#666;margin-bottom:4px;letter-spacing:1px;">LIGHT</div>
@@ -1082,6 +1084,10 @@ document.getElementById('btn-autorotate').addEventListener('click', function() {
   controls.autoRotate = !controls.autoRotate;
   this.style.borderColor = controls.autoRotate ? '#f0c040' : '#444';
   this.style.color = controls.autoRotate ? '#f0c040' : '#444';
+});
+
+document.getElementById('bg-color').addEventListener('input', e => {
+  scene.background = new THREE.Color(e.target.value);
 });
 
 // Slider bindings
