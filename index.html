@@ -411,6 +411,8 @@ function startDraw(e) {
   e.preventDefault();
   clearTimeout(poolTimer);
   isDrawing = true;
+  // Pause auto-rotate while drawing
+  if (controls.autoRotate) controls.autoRotate = false;
   const pos = getPos(e);
   lastX = pos.x; lastY = pos.y; lastT = Date.now();
   const bs = parseFloat(document.getElementById('brush-size').value);
@@ -750,6 +752,7 @@ function resizeThree() {
 
 // ─── 3D BUILD ─────────────────────────────────────────────────────────────────
 let sculpture = null;
+let hadFirstGenerate = false;
 
 // Build flat oval tube: custom ellipse cross-section via FrenetFrames
 // Voxel sphere approach: place spheres along path, overlapping = organic blob feel
@@ -979,14 +982,17 @@ function buildBlob(forceResolution) {
   sculpture = mcEffect;
   scene.add(sculpture);
 
-  // Frame camera to fit sculpture
-  const bbox = new THREE.Box3().setFromObject(sculpture);
-  const sphere = new THREE.Sphere();
-  bbox.getBoundingSphere(sphere);
-  controls.target.copy(sphere.center);
-  camera.position.copy(sphere.center).addScaledVector(new THREE.Vector3(0.5, 0.8, 1).normalize(), sphere.radius * 3.5);
-  camera.updateProjectionMatrix();
-  controls.update();
+  // Only auto-frame camera on first generate; after that keep user's view
+  if (!hadFirstGenerate) {
+    hadFirstGenerate = true;
+    const bbox = new THREE.Box3().setFromObject(sculpture);
+    const sphere = new THREE.Sphere();
+    bbox.getBoundingSphere(sphere);
+    controls.target.copy(sphere.center);
+    camera.position.set(0, 0, 3.5);
+    camera.up.set(0, 1, 0);
+    controls.update();
+  }
 }
 
 // ─── ANIMATE ─────────────────────────────────────────────────────────────────
@@ -1116,9 +1122,14 @@ document.querySelectorAll('.mat-btn').forEach(btn => {
 
 // Reset camera to front view
 document.getElementById('btn-reset-cam').addEventListener('click', () => {
+  controls.autoRotate = false;
+  document.getElementById('btn-autorotate').style.borderColor = '#444';
+  document.getElementById('btn-autorotate').style.color = '#444';
   camera.position.set(0, 0, 3.5);
   camera.up.set(0, 1, 0);
   controls.target.set(0, 0, 0);
+  controls.minPolarAngle = 0;
+  controls.maxPolarAngle = Math.PI;
   controls.update();
 });
 
