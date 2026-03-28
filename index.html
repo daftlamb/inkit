@@ -291,10 +291,11 @@ function noise(x, y) {
 
 function applyTurbulence(pts) {
   const t = parseFloat(document.getElementById('turbulence').value);
-  if (t === 0) return pts;
+  const seedAmt = currentSeed > 0 ? 20 + currentSeed * 0.15 : 0; // seed adds strong displacement
+  if (t === 0 && seedAmt === 0) return pts;
   return pts.map((p, i) => ({
-    x: p.x + noise(p.x * 0.05, i * 0.3) * t,
-    y: p.y + noise(i * 0.3, p.y * 0.05) * t,
+    x: p.x + noise(p.x * 0.05, i * 0.3) * t + noise(p.x * 0.02 + currentSeed, i * 0.15) * seedAmt,
+    y: p.y + noise(i * 0.3, p.y * 0.05) * t + noise(i * 0.15, p.y * 0.02 + currentSeed) * seedAmt,
     w: p.w
   }));
 }
