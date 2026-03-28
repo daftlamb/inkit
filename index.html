@@ -121,9 +121,10 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
   <div class="sep"></div>
   <button class="act-btn" id="btn-clear">Clear</button>
   <button class="act-btn" id="btn-generate">Generate 3D</button>
-  <button class="act-btn" id="btn-render" style="border-color:#80d0ff;color:#80d0ff;">Render HD</button>
-  <button class="act-btn" id="btn-export">Export PNG</button>
-  <button class="act-btn" id="btn-export-glb" style="border-color:#a0e0a0;color:#a0e0a0;">Export GLB</button>
+  <button class="act-btn" id="btn-export">PNG 1×</button>
+  <button class="act-btn" id="btn-export-2x" style="border-color:#aaa;color:#aaa;">2×</button>
+  <button class="act-btn" id="btn-export-4x" style="border-color:#aaa;color:#aaa;">4×</button>
+  <button class="act-btn" id="btn-export-glb" style="border-color:#a0e0a0;color:#a0e0a0;">GLB</button>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="ref-img-toggle"/> Ref Image
     <input type="file" id="ref-img-input" accept="image/*" style="display:none"/>
@@ -1010,16 +1011,6 @@ document.addEventListener('keydown', e => {
 });
 
 document.getElementById('btn-generate').addEventListener('click', build3D);
-document.getElementById('btn-render').addEventListener('click', () => {
-  const btn = document.getElementById('btn-render');
-  btn.textContent = 'Rendering...';
-  btn.disabled = true;
-  setTimeout(() => {
-    build3D(96);
-    btn.textContent = 'Render HD';
-    btn.disabled = false;
-  }, 50);
-});
 
 document.getElementById('bloom-toggle').addEventListener('change', e => {
   bloomPass.enabled = e.target.checked;
@@ -1134,17 +1125,36 @@ document.getElementById('strength').addEventListener('input', e => {
   }
 });
 
-// Export PNG
-document.getElementById('btn-export').addEventListener('click', () => {
+// Export PNG with transparent background
+function exportPNG(scale) {
+  const w = threeCanvas.clientWidth * scale;
+  const h = threeCanvas.clientHeight * scale;
+  const offscreen = document.createElement('canvas');
+  offscreen.width = w; offscreen.height = h;
+  const ctx = offscreen.getContext('2d');
+
+  // Render at target size with transparent bg
+  const prevBg = scene.background;
+  scene.background = null;
+  renderer.setSize(w, h);
   renderer.render(scene, camera);
-  threeCanvas.toBlob(blob => {
+  ctx.drawImage(threeCanvas, 0, 0, w, h);
+  scene.background = prevBg;
+  renderer.setSize(threeCanvas.clientWidth, threeCanvas.clientHeight);
+  renderer.render(scene, camera);
+
+  offscreen.toBlob(blob => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'inkit.png';
+    a.download = `inkit${scale > 1 ? '_' + scale + 'x' : ''}.png`;
     a.click();
     URL.revokeObjectURL(a.href);
-  });
-});
+  }, 'image/png');
+}
+
+document.getElementById('btn-export').addEventListener('click', () => exportPNG(1));
+document.getElementById('btn-export-2x').addEventListener('click', () => exportPNG(2));
+document.getElementById('btn-export-4x').addEventListener('click', () => exportPNG(4));
 
 // Export GLB
 document.getElementById('btn-export-glb').addEventListener('click', async () => {
