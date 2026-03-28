@@ -1129,26 +1129,32 @@ document.getElementById('strength').addEventListener('input', e => {
 function exportPNG(scale) {
   const w = threeCanvas.clientWidth * scale;
   const h = threeCanvas.clientHeight * scale;
-  const offscreen = document.createElement('canvas');
-  offscreen.width = w; offscreen.height = h;
-  const ctx = offscreen.getContext('2d');
 
-  // Render at target size with transparent bg
+  // Use a separate renderer so the main view is never resized
+  const exportRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  exportRenderer.setPixelRatio(1);
+  exportRenderer.setSize(w, h);
+  exportRenderer.toneMapping = renderer.toneMapping;
+  exportRenderer.toneMappingExposure = renderer.toneMappingExposure;
+  exportRenderer.outputColorSpace = renderer.outputColorSpace;
+
   const prevBg = scene.background;
   scene.background = null;
-  renderer.setSize(w, h);
-  renderer.render(scene, camera);
-  ctx.drawImage(threeCanvas, 0, 0, w, h);
-  scene.background = prevBg;
-  renderer.setSize(threeCanvas.clientWidth, threeCanvas.clientHeight);
-  renderer.render(scene, camera);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  exportRenderer.render(scene, camera);
 
-  offscreen.toBlob(blob => {
+  scene.background = prevBg;
+  camera.aspect = threeCanvas.clientWidth / threeCanvas.clientHeight;
+  camera.updateProjectionMatrix();
+
+  exportRenderer.domElement.toBlob(blob => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `inkit${scale > 1 ? '_' + scale + 'x' : ''}.png`;
     a.click();
     URL.revokeObjectURL(a.href);
+    exportRenderer.dispose();
   }, 'image/png');
 }
 
