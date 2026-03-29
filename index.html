@@ -1199,7 +1199,6 @@ bindSlider('tube-radius', 'tube-val', 0.001, 3);
 
 // Loose slider — update isolation and re-run MarchingCubes update only
 document.getElementById('loose').addEventListener('input', e => {
-  document.getElementById('loose-val').textContent = e.target.value;
   if (mcEffect) {
     mcEffect.isolation = parseFloat(e.target.value);
     mcEffect.update();
@@ -1218,19 +1217,16 @@ document.getElementById('btn-random-seed').addEventListener('click', () => {
   if (strokes.length) { clearTimeout(autoGenTimer); autoGenTimer = setTimeout(build3D, 200); }
 });
 
-// Z-spread: show value and auto-rebuild on change
+// Z-spread: auto-rebuild on change
 document.getElementById('z-spread').addEventListener('input', e => {
-  document.getElementById('z-val').textContent = e.target.value;
   if (strokes.length) {
     clearTimeout(autoGenTimer);
     autoGenTimer = setTimeout(build3D, 200);
   }
 });
 
-// Smooth: show label and auto-rebuild
+// Smooth: auto-rebuild
 document.getElementById('smooth').addEventListener('input', e => {
-  const labels = ['Low', 'Med', 'High', 'Ultra', 'Max', 'Max+'];
-  document.getElementById('smooth-val').textContent = labels[e.target.value];
   if (strokes.length) {
     clearTimeout(autoGenTimer);
     autoGenTimer = setTimeout(build3D, 200);
@@ -1238,8 +1234,6 @@ document.getElementById('smooth').addEventListener('input', e => {
 });
 
 document.getElementById('strength').addEventListener('input', e => {
-  const v = (e.target.value / 100).toFixed(2);
-  document.getElementById('strength-val').textContent = v;
   if (strokes.length) {
     clearTimeout(autoGenTimer);
     autoGenTimer = setTimeout(build3D, 200);
