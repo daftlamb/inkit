@@ -1103,10 +1103,10 @@ document.getElementById('bright-toggle').addEventListener('change', e => {
   document.body.style.background = bg;
   document.body.style.color = textColor;
   // Top bar and bottom controls get dark-gray in bright mode
-  document.getElementById('topbar').style.background = bright ? '#2a2a2a' : '';
-  document.getElementById('topbar').style.borderColor = bright ? '#444' : '';
-  document.getElementById('controls').style.background = bright ? '#2a2a2a' : '';
-  document.getElementById('controls').style.borderColor = bright ? '#444' : '';
+  document.getElementById('topbar').style.background = bright ? '#A9A9A9' : '';
+  document.getElementById('topbar').style.borderColor = bright ? '#888' : '';
+  document.getElementById('controls').style.background = bright ? '#A9A9A9' : '';
+  document.getElementById('controls').style.borderColor = bright ? '#888' : '';
   document.querySelectorAll('*').forEach(el => {
     if (el.classList.contains('panel') || el.id === 'left-panel' || el.id === 'right-panel' || el.id === 'controls-row' || el.id === 'top-bar') {
       el.style.background = panelBg;
