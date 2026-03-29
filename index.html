@@ -941,17 +941,20 @@ function buildExtrude() {
       })();
 
       // Compute offset outline
+      // For open strokes: fix end normals by using interior tangent at endpoints
       const left = [], right = [];
       const N = smoothPts.length;
       for (let i = 0; i < N; i++) {
         let prev, next;
         if (isShape) {
-          // Closed: wrap around
           prev = smoothPts[(i - 1 + N) % N];
           next = smoothPts[(i + 1) % N];
         } else {
-          prev = smoothPts[Math.max(0, i - 1)];
-          next = smoothPts[Math.min(N - 1, i + 1)];
+          // Use 2-step look-ahead/behind at ends to avoid degenerate tangent
+          prev = smoothPts[Math.max(0, i <= 1 ? 0 : i - 1)];
+          next = smoothPts[Math.min(N - 1, i >= N - 2 ? N - 1 : i + 1)];
+          if (i === 0)     { prev = smoothPts[0];     next = smoothPts[Math.min(2, N-1)]; }
+          if (i === N - 1) { next = smoothPts[N - 1]; prev = smoothPts[Math.max(N - 3, 0)]; }
         }
         const dx = next.x - prev.x, dy = next.y - prev.y;
         const len = Math.hypot(dx, dy) || 1;
@@ -976,25 +979,24 @@ function buildExtrude() {
         hole.setFromPoints(innerRaw);
         shape.holes.push(hole);
       } else {
-        // Open stroke: left side → semicircle cap at end → right side → semicircle cap at start
+        // Open stroke: left → lineTo right (end) → right reversed → lineTo left (start)
         shape.moveTo(mx(left[0]), my(left[0]));
         for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
-        // End cap: semicircle (tangent in 3D coords = flip Y)
+        // End round cap via arc
         const hw_end = (smoothPts[N-1].w || 4) * 0.5 / cw;
         const ex = mx(smoothPts[N-1]), ey = my(smoothPts[N-1]);
         const tanX  = smoothPts[N-1].x - smoothPts[N-2].x;
-        const tanY  = -(smoothPts[N-1].y - smoothPts[N-2].y); // flip Y for 3D
+        const tanY  = -(smoothPts[N-1].y - smoothPts[N-2].y);
         const endAngle = Math.atan2(tanY, tanX);
-        shape.absarc(ex, ey, hw_end, endAngle - Math.PI / 2, endAngle + Math.PI / 2, false);
-        // Right side reversed
+        shape.absarc(ex, ey, hw_end, endAngle - Math.PI/2, endAngle + Math.PI/2, false);
         for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
-        // Start cap: semicircle
+        // Start round cap via arc
         const hw_start = (smoothPts[0].w || 4) * 0.5 / cw;
         const sx = mx(smoothPts[0]), sy = my(smoothPts[0]);
-        const tanX2  = smoothPts[1].x - smoothPts[0].x;
-        const tanY2  = -(smoothPts[1].y - smoothPts[0].y); // flip Y for 3D
+        const tanX2 = smoothPts[1].x - smoothPts[0].x;
+        const tanY2 = -(smoothPts[1].y - smoothPts[0].y);
         const startAngle = Math.atan2(tanY2, tanX2);
-        shape.absarc(sx, sy, hw_start, startAngle + Math.PI / 2, startAngle - Math.PI / 2, true);
+        shape.absarc(sx, sy, hw_start, startAngle + Math.PI/2, startAngle - Math.PI/2, true);
         shape.closePath();
       }
 
