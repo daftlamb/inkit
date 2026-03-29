@@ -972,14 +972,25 @@ function buildExtrude() {
 
       // Build shape outline
       if (isShape) {
-        // Ring: TubeGeometry along closed path — no holes needed
-        const tubePts = smoothPts.map(p => new THREE.Vector3(mx(p), my(p), 0));
-        tubePts.push(tubePts[0]); // close the loop
-        const tubeCurve = new THREE.CatmullRomCurve3(tubePts, true, 'catmullrom', 0);
-        const tubeR = (smoothPts[0].w || 4) * 0.5 / cw;
-        const tubeSegs = smoothPts.length * 2;
-        const geo = new THREE.TubeGeometry(tubeCurve, tubeSegs, tubeR + depthVal * 0.5, 8, true);
-        geo.translate(0, 0, 0);
+        // Ring: TubeGeometry along closed path
+        const tubeR = (pts[0].w || 4) * 0.5 / cw;
+        const pts3d = pts.map(p => new THREE.Vector3(mx(p), my(p), 0));
+        // Use CurvePath with LineCurve3 for sharp corners (rect/poly)
+        // Use CatmullRomCurve3 for circle (many pts = smooth anyway)
+        let tubeCurve;
+        if (pts.length <= 8) {
+          // Sharp-corner path (rect=4, poly=3-8, star)
+          const path = new THREE.CurvePath();
+          for (let i = 0; i < pts3d.length; i++) {
+            path.add(new THREE.LineCurve3(pts3d[i], pts3d[(i+1) % pts3d.length]));
+          }
+          tubeCurve = path;
+        } else {
+          // Smooth closed (circle, poly with many sides)
+          tubeCurve = new THREE.CatmullRomCurve3(pts3d, true, 'catmullrom', 0.5);
+        }
+        const tubeSegs = Math.max(pts.length * 3, 48);
+        const geo = new THREE.TubeGeometry(tubeCurve, tubeSegs, tubeR, 8, true);
         geo.computeVertexNormals();
         group.add(new THREE.Mesh(geo, buildMaterial(color)));
         continue;
