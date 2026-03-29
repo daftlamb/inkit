@@ -965,14 +965,15 @@ function buildExtrude() {
       const shape = new THREE.Shape();
 
       if (isShape) {
-        // Closed shape: outer then inner (reversed) as hole
-        shape.moveTo(mx(left[0]), my(left[0]));
-        for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
-        shape.closePath();
+        // Build outer and inner point arrays in 3D coords
+        const outerPts = left.map(p => new THREE.Vector2(mx(p), my(p)));
+        const innerPts = right.map(p => new THREE.Vector2(mx(p), my(p)));
+        // Outer must be CCW, hole must be CW (Three.js ShapeUtils convention)
+        if (THREE.ShapeUtils.isClockWise(outerPts)) outerPts.reverse();
+        if (!THREE.ShapeUtils.isClockWise(innerPts)) innerPts.reverse();
+        shape.setFromPoints(outerPts);
         const hole = new THREE.Path();
-        hole.moveTo(mx(right[right.length - 1]), my(right[right.length - 1]));
-        for (let i = right.length - 2; i >= 0; i--) hole.lineTo(mx(right[i]), my(right[i]));
-        hole.closePath();
+        hole.setFromPoints(innerPts);
         shape.holes.push(hole);
       } else {
         // Open stroke: left side → semicircle cap at end → right side → semicircle cap at start
