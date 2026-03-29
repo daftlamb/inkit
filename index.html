@@ -1409,6 +1409,12 @@ document.getElementById('btn-random-seed').addEventListener('click', () => {
   });
 });
 
+['rmode-blob', 'rmode-extrude'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    if (strokes.length) { clearTimeout(autoGenTimer); autoGenTimer = setTimeout(build3D, 200); }
+  });
+});
+
 // Z-spread: auto-rebuild on change
 document.getElementById('z-spread').addEventListener('input', e => {
   if (strokes.length) {
