@@ -14,8 +14,8 @@
   --border:#d0cfc9;--header-bg:#fafafa;--surface:#fff;--canvas-bg:#ede9e3;
 }
 [data-theme="dark"]{
-  --bg:#111;--fg:#ccc;--accent:#f0c040;--muted:#666;
-  --border:#333;--header-bg:#1a1a1a;--surface:#1a1a1a;--canvas-bg:#111;
+  --bg:#141414;--fg:#cccccc;--accent:#39ff14;--muted:#555;
+  --border:#2a2a2a;--header-bg:#0e0e0e;--surface:#1a1a1a;--canvas-bg:#0e0e0e;
 }
 body{background:var(--bg);color:var(--fg);font-family:'Outfit',sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column;transition:background .2s,color .2s;}
 #topbar{
@@ -1102,12 +1102,12 @@ document.getElementById('grid-toggle').addEventListener('change', e => {
 document.getElementById('bright-toggle').addEventListener('change', e => {
   const bright = e.target.checked;
   document.documentElement.setAttribute('data-theme', bright ? 'light' : 'dark');
-  scene.background = new THREE.Color(bright ? '#ede9e3' : '#0d0d0d');
-  drawCanvas.style.background = '';  // let CSS handle via --canvas-bg
+  scene.background = new THREE.Color(bright ? '#ede9e3' : '#0e0e0e');
+  drawCanvas.style.background = '';
   dc.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   redrawAll();
   gridHelper.children && gridHelper.children.forEach(c => {
-    if (c.material) c.material.color.set(bright ? 0xcccccc : 0x333333);
+    if (c.material) c.material.color.set(bright ? 0xcccccc : 0x2a2a2a);
   });
 });
 
