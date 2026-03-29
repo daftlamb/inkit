@@ -971,31 +971,25 @@ function buildExtrude() {
       }
 
       // Build shape outline
-      const shape = new THREE.Shape();
-
       if (isShape) {
-        // Shape ring: outer CCW + inner CW hole
-        // For CW canvas path: normal (-dy,dx) points inward → left=inner, right=outer
-        const outerPts2d = right.map(p => new THREE.Vector2(mx(p), my(p)));
-        const innerPts2d = left.map(p => new THREE.Vector2(mx(p), my(p)));
-        // Ensure outer CCW, inner CW
-        if (THREE.ShapeUtils.isClockWise(outerPts2d)) outerPts2d.reverse();
-        if (!THREE.ShapeUtils.isClockWise(innerPts2d)) innerPts2d.reverse();
-        shape.moveTo(outerPts2d[0].x, outerPts2d[0].y);
-        for (let i = 1; i < outerPts2d.length; i++) shape.lineTo(outerPts2d[i].x, outerPts2d[i].y);
-        shape.closePath();
-        const hole = new THREE.Path();
-        hole.moveTo(innerPts2d[0].x, innerPts2d[0].y);
-        for (let i = 1; i < innerPts2d.length; i++) hole.lineTo(innerPts2d[i].x, innerPts2d[i].y);
-        hole.closePath();
-        shape.holes.push(hole);
-      } else {
-        // Open stroke: 875b3fa original logic
-        shape.moveTo(mx(left[0]), my(left[0]));
-        for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
-        for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
-        shape.closePath();
+        // Ring: TubeGeometry along closed path — no holes needed
+        const tubePts = smoothPts.map(p => new THREE.Vector3(mx(p), my(p), 0));
+        tubePts.push(tubePts[0]); // close the loop
+        const tubeCurve = new THREE.CatmullRomCurve3(tubePts, true, 'catmullrom', 0);
+        const tubeR = (smoothPts[0].w || 4) * 0.5 / cw;
+        const tubeSegs = smoothPts.length * 2;
+        const geo = new THREE.TubeGeometry(tubeCurve, tubeSegs, tubeR + depthVal * 0.5, 8, true);
+        geo.translate(0, 0, 0);
+        geo.computeVertexNormals();
+        group.add(new THREE.Mesh(geo, buildMaterial(color)));
+        continue;
       }
+
+      const shape = new THREE.Shape();
+      shape.moveTo(mx(left[0]), my(left[0]));
+      for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
+      for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
+      shape.closePath();
 
       const geo = new THREE.ExtrudeGeometry(shape, {
         depth: depthVal, bevelEnabled: bevelVal > 0,
