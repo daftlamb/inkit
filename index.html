@@ -992,17 +992,26 @@ function buildExtrude() {
         // Use CatmullRomCurve3 for circle (many pts = smooth anyway)
         let tubeCurve;
         if (pts.length <= 8) {
-          // Sharp-corner path (rect=4, poly=3-8, star)
-          const path = new THREE.CurvePath();
+          // Sharp corners: interpolate extra points along each edge for uniform tube
+          const densePts = [];
+          const segsPerEdge = 16;
           for (let i = 0; i < pts3d.length; i++) {
-            path.add(new THREE.LineCurve3(pts3d[i], pts3d[(i+1) % pts3d.length]));
+            const a = pts3d[i], b = pts3d[(i + 1) % pts3d.length];
+            for (let j = 0; j < segsPerEdge; j++) {
+              const t = j / segsPerEdge;
+              densePts.push(new THREE.Vector3(
+                a.x + (b.x - a.x) * t,
+                a.y + (b.y - a.y) * t,
+                0
+              ));
+            }
           }
-          tubeCurve = path;
+          tubeCurve = new THREE.CatmullRomCurve3(densePts, true, 'catmullrom', 0);
         } else {
-          // Smooth closed (circle, poly with many sides)
+          // Smooth closed (circle)
           tubeCurve = new THREE.CatmullRomCurve3(pts3d, true, 'catmullrom', 0.5);
         }
-        const tubeSegs = Math.max(pts.length * 3, 48);
+        const tubeSegs = pts.length <= 8 ? pts.length * 16 : Math.max(pts.length * 3, 48);
         const geo = new THREE.TubeGeometry(tubeCurve, tubeSegs, tubeR, 8, true);
         geo.computeVertexNormals();
         group.add(new THREE.Mesh(geo, buildMaterial(color)));
