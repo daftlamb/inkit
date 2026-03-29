@@ -233,6 +233,9 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
       <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Smooth<input type="range" id="smooth" min="0" max="5" value="1" style="width:80px;"/></label>
       <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Strength<input type="range" id="strength" min="1" max="100" value="6" style="width:80px;"/></label>
       <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Loose<input type="range" id="loose" min="20" max="300" value="80" style="width:80px;"/></label>
+      <div style="height:1px;background:var(--border);margin:3px 0;"></div>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Depth<input type="range" id="extrude-depth" min="1" max="100" value="20" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Bevel<input type="range" id="extrude-bevel" min="0" max="50" value="10" style="width:80px;"/></label>
       <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Model Color<input type="color" id="model-color" value="#c8a020" style="width:26px;height:18px;border:1px solid #444;background:none;cursor:pointer;padding:0;border-radius:2px;"/></label>
     </div>
     <div id="hint">Draw on the left →<br/>then Generate 3D</div>
@@ -859,6 +862,8 @@ function buildExtrude() {
 
   const cw = drawCanvas.width, ch = drawCanvas.height;
   const color = new THREE.Color(document.getElementById('model-color').value);
+  const depthVal = parseFloat(document.getElementById('extrude-depth').value) / 500;
+  const bevelVal = parseFloat(document.getElementById('extrude-bevel').value) / 2000;
   const group = new THREE.Group();
 
   for (const stroke of strokes) {
@@ -866,22 +871,19 @@ function buildExtrude() {
     for (const pts of allCopies) {
       if (pts.length < 2) continue;
 
-      // Build offset outline: forward side + reverse side
       const left = [], right = [];
       for (let i = 0; i < pts.length; i++) {
         const prev = pts[Math.max(0, i - 1)];
         const next = pts[Math.min(pts.length - 1, i + 1)];
         const dx = next.x - prev.x, dy = next.y - prev.y;
         const len = Math.hypot(dx, dy) || 1;
-        const nx = -dy / len, ny = dx / len; // normal
+        const nx = -dy / len, ny = dx / len;
         const hw = (pts[i].w || 4) * 0.5;
         left.push({ x: pts[i].x + nx * hw, y: pts[i].y + ny * hw });
         right.push({ x: pts[i].x - nx * hw, y: pts[i].y - ny * hw });
       }
 
-      // Build THREE.Shape from outline
       const shape = new THREE.Shape();
-      // Map canvas coords to [-0.5, 0.5]
       const mx = p => (p.x - cw / 2) / cw;
       const my = p => -(p.y - ch / 2) / ch;
 
@@ -890,19 +892,29 @@ function buildExtrude() {
       for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
       shape.closePath();
 
-      const depth = 0.04;
       const geo = new THREE.ExtrudeGeometry(shape, {
-        depth,
-        bevelEnabled: true,
-        bevelSize: 0.008,
-        bevelThickness: 0.008,
-        bevelSegments: 4,
+        depth: depthVal,
+        bevelEnabled: bevelVal > 0,
+        bevelSize: bevelVal,
+        bevelThickness: bevelVal,
+        bevelSegments: 6,
       });
-      geo.translate(0, 0, -depth / 2); // center Z
+      geo.translate(0, 0, -depthVal / 2);
+      geo.computeVertexNormals();
 
       const mat = buildMaterial(color);
       const mesh = new THREE.Mesh(geo, mat);
       group.add(mesh);
+
+      // End caps: spheres at first and last point
+      const capR = (pts[0].w || 4) * 0.5 / cw;
+      const p0 = pts[0], pN = pts[pts.length - 1];
+      [p0, pN].forEach(p => {
+        const capGeo = new THREE.SphereGeometry(capR, 12, 8);
+        capGeo.translate(mx(p), my(p), 0);
+        const capMesh = new THREE.Mesh(capGeo, buildMaterial(color));
+        group.add(capMesh);
+      });
     }
   }
 
@@ -1208,6 +1220,15 @@ document.getElementById('btn-random-seed').addEventListener('click', () => {
   document.getElementById('seed-slider').value = s;
   currentSeed = s;
   if (strokes.length) { clearTimeout(autoGenTimer); autoGenTimer = setTimeout(build3D, 200); }
+});
+
+// Extrude depth/bevel sliders
+['extrude-depth', 'extrude-bevel'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    if (strokes.length && document.getElementById('rmode-extrude').checked) {
+      clearTimeout(autoGenTimer); autoGenTimer = setTimeout(build3D, 200);
+    }
+  });
 });
 
 // Z-spread: auto-rebuild on change
