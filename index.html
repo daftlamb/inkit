@@ -16,7 +16,7 @@ body{background:#111;color:#ccc;font-family:'Outfit',sans-serif;height:100vh;ove
   flex-wrap:wrap;
 }
 #topbar h1{font-size:14px;color:#f0c040;letter-spacing:2px;margin-right:6px;font-weight:500;}
-.btn-icon{background:none;border:1px solid #333;color:#aaa;border-radius:4px;height:26px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;padding:0 8px;transition:all .15s;}
+.btn-icon{background:none;border:1px solid #333;color:#aaa;border-radius:4px;height:30px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:14px;padding:0 10px;transition:all .15s;}
 .btn-icon:hover{border-color:#f0c040;color:#f0c040;}
 .sym-btn{
   background:#222;border:1px solid #444;color:#aaa;
@@ -33,7 +33,7 @@ body{background:#111;color:#ccc;font-family:'Outfit',sans-serif;height:100vh;ove
 .sep{width:1px;height:20px;background:#333;margin:0 4px;}
 .act-btn{
   background:#2a2a2a;border:1px solid #555;color:#ccc;
-  padding:4px 12px;font-size:11px;cursor:pointer;border-radius:2px;font-family:'Outfit',sans-serif;
+  padding:4px 12px;font-size:13px;cursor:pointer;border-radius:2px;font-family:'Outfit',sans-serif;
 }
 .act-btn:hover{background:#3a3a3a;}
 #btn-generate{border-color:#f0c040;color:#f0c040;}
@@ -56,7 +56,7 @@ body{background:#111;color:#ccc;font-family:'Outfit',sans-serif;height:100vh;ove
   padding:10px 14px;background:#1a1a1a;border-top:1px solid #333;
   display:flex;flex-wrap:wrap;gap:12px;align-items:center;
 }
-.ctrl{display:flex;align-items:center;gap:6px;font-size:13px;color:#888;font-family:'Outfit',sans-serif;}
+.ctrl{display:flex;align-items:center;gap:6px;font-size:18px;color:#888;font-family:'Outfit',sans-serif;}
 .ctrl label{white-space:nowrap;}
 .ctrl span{color:#f0c040;min-width:28px;text-align:right;}
 input[type=range]{width:80px;accent-color:#f0c040;cursor:pointer;}
@@ -207,24 +207,24 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
       <input type="color" id="bg-color2" value="#111111" title="Background color (bottom)" style="width:22px;height:22px;border:1px solid #444;background:none;cursor:pointer;padding:0;border-radius:2px;"/>
     </div>
     <div id="light-panel">
-      <div style="font-size:10px;color:#666;margin-bottom:4px;letter-spacing:1px;">LIGHT</div>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Azimuth<input type="range" id="light-az" min="0" max="360" value="45" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Elevation<input type="range" id="light-el" min="0" max="90" value="60" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Intensity<input type="range" id="light-int" min="0" max="200" value="80" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Ambient<input type="range" id="light-amb" min="0" max="100" value="30" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Env<input type="range" id="light-env" min="0" max="30" value="10" style="width:80px;"/></label>
+      <div style="font-size:11px;color:#666;margin-bottom:4px;letter-spacing:1px;">LIGHT</div>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Azimuth<input type="range" id="light-az" min="0" max="360" value="45" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Elevation<input type="range" id="light-el" min="0" max="90" value="60" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Intensity<input type="range" id="light-int" min="0" max="200" value="80" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Ambient<input type="range" id="light-amb" min="0" max="100" value="30" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Env<input type="range" id="light-env" min="0" max="30" value="10" style="width:80px;"/></label>
       <div style="height:1px;background:#333;margin:4px 0;"></div>
-      <div style="font-size:10px;color:#666;margin-bottom:2px;letter-spacing:1px;">MATERIAL</div>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Metalness<input type="range" id="mat-metalness" min="0" max="100" value="100" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Roughness<input type="range" id="mat-roughness" min="0" max="100" value="0" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Clearcoat<input type="range" id="mat-clearcoat" min="0" max="100" value="0" style="width:80px;"/></label>
+      <div style="font-size:11px;color:#666;margin-bottom:2px;letter-spacing:1px;">MATERIAL</div>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Metalness<input type="range" id="mat-metalness" min="0" max="100" value="100" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Roughness<input type="range" id="mat-roughness" min="0" max="100" value="0" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Clearcoat<input type="range" id="mat-clearcoat" min="0" max="100" value="0" style="width:80px;"/></label>
       <div style="height:1px;background:#333;margin:4px 0;"></div>
-      <div style="font-size:10px;color:#666;margin-bottom:2px;letter-spacing:1px;">3D SHAPE</div>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Z Spread<input type="range" id="z-spread" min="0" max="100" value="0" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Smooth<input type="range" id="smooth" min="0" max="5" value="1" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Strength<input type="range" id="strength" min="1" max="100" value="6" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Loose<input type="range" id="loose" min="20" max="300" value="80" style="width:80px;"/></label>
-      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Model Color<input type="color" id="model-color" value="#c8a020" style="width:26px;height:18px;border:1px solid #444;background:none;cursor:pointer;padding:0;border-radius:2px;"/></label>
+      <div style="font-size:11px;color:#666;margin-bottom:2px;letter-spacing:1px;">3D SHAPE</div>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Z Spread<input type="range" id="z-spread" min="0" max="100" value="0" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Smooth<input type="range" id="smooth" min="0" max="5" value="1" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Strength<input type="range" id="strength" min="1" max="100" value="6" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Loose<input type="range" id="loose" min="20" max="300" value="80" style="width:80px;"/></label>
+      <label style="font-size:13px;color:#888;display:flex;align-items:center;justify-content:space-between;">Model Color<input type="color" id="model-color" value="#c8a020" style="width:26px;height:18px;border:1px solid #444;background:none;cursor:pointer;padding:0;border-radius:2px;"/></label>
     </div>
     <div id="hint">Draw on the left →<br/>then Generate 3D</div>
   </div>
@@ -1097,19 +1097,22 @@ document.getElementById('bright-toggle').addEventListener('change', e => {
   const panelBg = bright ? 'rgba(232,228,222,0.96)' : '';
   const textColor = bright ? '#222' : '';
   scene.background = new THREE.Color(bright ? '#eae6e0' : '#0d0d0d');
-  // Update canvas background
   drawCanvas.style.background = bright ? '#f0ede8' : '#000';
   dc.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   redrawAll();
   document.body.style.background = bg;
   document.body.style.color = textColor;
+  // Top bar and bottom controls get dark-gray in bright mode
+  document.getElementById('topbar').style.background = bright ? '#2a2a2a' : '';
+  document.getElementById('topbar').style.borderColor = bright ? '#444' : '';
+  document.getElementById('controls').style.background = bright ? '#2a2a2a' : '';
+  document.getElementById('controls').style.borderColor = bright ? '#444' : '';
   document.querySelectorAll('*').forEach(el => {
     if (el.classList.contains('panel') || el.id === 'left-panel' || el.id === 'right-panel' || el.id === 'controls-row' || el.id === 'top-bar') {
       el.style.background = panelBg;
       el.style.color = textColor;
     }
   });
-  // Grid color
   gridHelper.children && gridHelper.children.forEach(c => {
     if (c.material) c.material.color.set(bright ? 0xaaaaaa : 0x333333);
   });
