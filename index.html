@@ -330,10 +330,14 @@ function getSymmetryPoints(pts) {
         const dx = p.x - cx, dy = p.y - cy;
         return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos, w: p.w };
       });
-      // Skip if this copy is identical to an existing one (center-aligned shapes)
-      const isDup = copies.some(existing =>
-        Math.hypot(existing[0].x - copy[0].x, existing[0].y - copy[0].y) < 1
-      );
+      // Skip if centroid of this copy matches an existing one (center-aligned shapes)
+      const centX = copy.reduce((s,p) => s+p.x, 0) / copy.length;
+      const centY = copy.reduce((s,p) => s+p.y, 0) / copy.length;
+      const isDup = copies.some(existing => {
+        const ex = existing.reduce((s,p) => s+p.x, 0) / existing.length;
+        const ey = existing.reduce((s,p) => s+p.y, 0) / existing.length;
+        return Math.hypot(ex - centX, ey - centY) < 2;
+      });
       if (!isDup) copies.push(copy);
     }
   }
@@ -506,14 +510,14 @@ function endDraw(e) {
 }
 
 drawCanvas.addEventListener('mousedown', e => {
-  if (drawMode === 'shape') { shapeOrigin = snapPos(getPos(e).x, getPos(e).y); }
+  if (drawMode === 'shape') { shapeOrigin = getPos(e); }
   else if (drawMode === 'pen') penDown(e);
   else startDraw(e);
 });
 drawCanvas.addEventListener('mousemove', e => {
   if (drawMode === 'shape') {
     if (!shapeOrigin) return;
-    const pos = snapPos(getPos(e).x, getPos(e).y);
+    const pos = getPos(e);
     const rx = Math.abs(pos.x - shapeOrigin.x), ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
     redrawAll();
     const preview = shapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry);
@@ -530,7 +534,7 @@ drawCanvas.addEventListener('mousemove', e => {
 drawCanvas.addEventListener('mouseup', e => {
   if (drawMode === 'shape') {
     if (!shapeOrigin) return;
-    const pos = snapPos(getPos(e).x, getPos(e).y);
+    const pos = getPos(e);
     const rx = Math.abs(pos.x - shapeOrigin.x), ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
     if (rx > 4 || ry > 4) {
       strokes.push({ pts: shapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry), noTurbulence: true });
