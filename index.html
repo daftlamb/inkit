@@ -128,6 +128,7 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
   <button class="act-btn" id="btn-export-2x" style="border-color:#aaa;color:#aaa;">2×</button>
   <button class="act-btn" id="btn-export-4x" style="border-color:#aaa;color:#aaa;">4×</button>
   <button class="act-btn" id="btn-export-glb" style="border-color:#a0e0a0;color:#a0e0a0;">GLB</button>
+  <button class="act-btn" id="btn-export-stl" style="border-color:#a0e0a0;color:#a0e0a0;">STL</button>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="ref-img-toggle"/> Ref Image
     <input type="file" id="ref-img-input" accept="image/*" style="display:none"/>
@@ -203,6 +204,8 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
         <input type="range" id="seed-slider" min="0" max="999" value="0"/>
         <button class="act-btn" id="btn-random-seed" style="padding:2px 8px;font-size:10px;">🎲</button>
       </div>
+      <div style="height:1px;background:#333;margin:6px 0 4px;"></div>
+      <div style="font-size:9px;color:#555;letter-spacing:1px;margin-bottom:4px;">CANVAS</div>
       <div class="ctrl">
         <label>Brush Color</label>
         <input type="color" id="stroke-color" value="#c8a020"/>
@@ -812,7 +815,8 @@ function buildMarchingCubes(allStrokes, scale, mat, smoothIdx) {
       const x = (p.x + 1) / 2;
       const y = (p.y + 1) / 2;
       const z = (p.z + 1) / 2;
-      if (x < 0 || x > 1 || y < 0 || y > 1 || z < 0 || z > 1) continue;
+      // Clamp to valid MarchingCubes range with margin to avoid clipping
+      if (x < 0.05 || x > 0.95 || y < 0.05 || y > 0.95 || z < 0.05 || z > 0.95) continue;
       mcEffect.addBall(x, y, z, w, 12);
     }
   }
@@ -1076,6 +1080,10 @@ document.getElementById('btn-theme').addEventListener('click', function() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && drawMode === 'pen') penCommit();
   if (e.key === 'Escape' && drawMode === 'pen') { penAnchors = []; penPreview = null; redrawAll(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    if (allStrokes.length > 0) { allStrokes.pop(); redrawAll(); }
+  }
 });
 
 document.getElementById('btn-generate').addEventListener('click', build3D);
@@ -1246,13 +1254,19 @@ function exportPNG(scale) {
   const w = threeCanvas.clientWidth * scale;
   const h = threeCanvas.clientHeight * scale;
 
-  // Use a separate renderer so the main view is never resized
   const exportRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   exportRenderer.setPixelRatio(1);
   exportRenderer.setSize(w, h);
   exportRenderer.toneMapping = renderer.toneMapping;
   exportRenderer.toneMappingExposure = renderer.toneMappingExposure;
   exportRenderer.outputColorSpace = renderer.outputColorSpace;
+  exportRenderer.shadowMap.enabled = renderer.shadowMap.enabled;
+
+  // Share environment texture with export renderer
+  const exportPmrem = new THREE.PMREMGenerator(exportRenderer);
+  if (scene.environment) {
+    scene.environment = exportPmrem.fromEquirectangular(scene.environment).texture;
+  }
 
   const prevBg = scene.background;
   scene.background = null;
@@ -1261,6 +1275,8 @@ function exportPNG(scale) {
   exportRenderer.render(scene, camera);
 
   scene.background = prevBg;
+  // Restore original environment
+  const mainPmrem = new THREE.PMREMGenerator(renderer);
   camera.aspect = threeCanvas.clientWidth / threeCanvas.clientHeight;
   camera.updateProjectionMatrix();
 
@@ -1271,6 +1287,7 @@ function exportPNG(scale) {
     a.click();
     URL.revokeObjectURL(a.href);
     exportRenderer.dispose();
+    exportPmrem.dispose();
   }, 'image/png');
 }
 
@@ -1291,6 +1308,19 @@ document.getElementById('btn-export-glb').addEventListener('click', async () => 
     a.click();
     URL.revokeObjectURL(a.href);
   }, err => console.error(err), { binary: true });
+});
+
+document.getElementById('btn-export-stl').addEventListener('click', async () => {
+  if (!sculpture) return;
+  const { STLExporter } = await import('three/addons/exporters/STLExporter.js');
+  const exporter = new STLExporter();
+  const result = exporter.parse(sculpture, { binary: true });
+  const blob = new Blob([result], { type: 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'inkit.stl';
+  a.click();
+  URL.revokeObjectURL(a.href);
 });
 
 // Reference image (background overlay on draw canvas)
