@@ -1105,13 +1105,20 @@ function buildBlob(forceResolution) {
     const pts = stroke.pts;
     if (pts.length < 2) continue;
 
+    // Shape at canvas center: skip symmetry copies to avoid stacking
+    const _scx = drawCanvas.width / 2, _scy = drawCanvas.height / 2;
+    const _scpX = pts.reduce((s,p)=>s+p.x,0)/pts.length;
+    const _scpY = pts.reduce((s,p)=>s+p.y,0)/pts.length;
+    const _atCenter = stroke.noTurbulence && Math.hypot(_scpX-_scx, _scpY-_scy) < drawCanvas.width/24;
+    const activeCopies = _atCenter ? [{ angle: 0, mirror: false }] : symCopies;
+
     const rawPts = pts.map((p, i) => {
       const t = pts.length > 1 ? i / (pts.length - 1) : 0;
       const zCurve = Math.sin(t * Math.PI) * zSpread;
       return new THREE.Vector3((p.x - cw/2) / cw, -(p.y - ch/2) / ch, zCurve * 0.3);
     });
 
-    for (const copy of symCopies) {
+    for (const copy of activeCopies) {
       const basePts = copy.mirror ? rawPts.map(p => new THREE.Vector3(-p.x, p.y, p.z)) : rawPts;
       const curve = new THREE.CatmullRomCurve3(basePts);
       const smoothPts = curve.getPoints(subdivide);
