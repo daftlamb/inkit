@@ -326,10 +326,15 @@ function getSymmetryPoints(pts) {
     for (let i = 0; i < n; i++) {
       const angle = (Math.PI * 2 * i) / n;
       const cos = Math.cos(angle), sin = Math.sin(angle);
-      copies.push(pts.map(p => {
+      const copy = pts.map(p => {
         const dx = p.x - cx, dy = p.y - cy;
         return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos, w: p.w };
-      }));
+      });
+      // Skip if this copy is identical to an existing one (center-aligned shapes)
+      const isDup = copies.some(existing =>
+        Math.hypot(existing[0].x - copy[0].x, existing[0].y - copy[0].y) < 1
+      );
+      if (!isDup) copies.push(copy);
     }
   }
   return copies;
@@ -408,7 +413,7 @@ function redrawAll() {
   if (document.getElementById('grid-toggle')?.checked) draw2DGrid();
   // Completed strokes
   for (const stroke of strokes) {
-    for (const copy of getSymmetryPoints(applyTurbulence(stroke.pts))) {
+    for (const copy of getSymmetryPoints(stroke.noTurbulence ? stroke.pts : applyTurbulence(stroke.pts))) {
       drawStroke(copy, 1.0);
     }
   }
@@ -880,7 +885,7 @@ function buildExtrude() {
   const group = new THREE.Group();
 
   for (const stroke of strokes) {
-    const allCopies = getSymmetryPoints(applyTurbulence(stroke.pts));
+    const allCopies = getSymmetryPoints(stroke.noTurbulence ? stroke.pts : applyTurbulence(stroke.pts));
     for (const pts of allCopies) {
       if (pts.length < 2) continue;
 
@@ -1075,9 +1080,9 @@ document.querySelectorAll('[data-sym]').forEach(btn => {
 
 document.getElementById('btn-clear').addEventListener('click', () => {
   strokes = []; currentStroke = []; penAnchors = []; penPreview = null;
-  dc.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   if (sculpture) { scene.remove(sculpture); sculpture = null; }
   document.getElementById('hint').style.display = '';
+  redrawAll(); // preserves grid
 });
 
 document.getElementById('btn-undo').addEventListener('click', () => {
@@ -1153,7 +1158,7 @@ drawCanvas.addEventListener('mouseup', e => {
     const pos = snapPos(getPos(e).x, getPos(e).y);
     const rx = Math.abs(pos.x - shapeOrigin.x), ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
     if (rx > 4 || ry > 4) {
-      strokes.push({ pts: shapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry) });
+      strokes.push({ pts: shapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry), noTurbulence: true });
       redrawAll(); clearTimeout(autoGenTimer); autoGenTimer = setTimeout(build3D, 400);
     }
     shapeOrigin = null;
