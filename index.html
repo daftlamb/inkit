@@ -334,16 +334,17 @@ function getSymmetryPoints(pts) {
       const centX = copy.reduce((s,p) => s+p.x, 0) / copy.length;
       const centY = copy.reduce((s,p) => s+p.y, 0) / copy.length;
       const snapGrid = drawCanvas.width / 24;
+      // Compute bounding box size as shape fingerprint
+      const bboxW = Math.max(...copy.map(p=>p.x)) - Math.min(...copy.map(p=>p.x));
+      const bboxH = Math.max(...copy.map(p=>p.y)) - Math.min(...copy.map(p=>p.y));
       const isDup = copies.some(existing => {
         const ex = existing.reduce((s,p) => s+p.x, 0) / existing.length;
         const ey = existing.reduce((s,p) => s+p.y, 0) / existing.length;
         if (Math.hypot(ex - centX, ey - centY) >= snapGrid * 0.6) return false;
-        // Same centroid: check if all points are within threshold (identical shape)
-        const maxDist = existing.reduce((m, p, i) => {
-          const cp = copy[i % copy.length];
-          return Math.max(m, Math.hypot(p.x - cp.x, p.y - cp.y));
-        }, 0);
-        return maxDist < snapGrid * 0.6;
+        // Same centroid: compare bounding box size (works for rotational duplicates)
+        const ebW = Math.max(...existing.map(p=>p.x)) - Math.min(...existing.map(p=>p.x));
+        const ebH = Math.max(...existing.map(p=>p.y)) - Math.min(...existing.map(p=>p.y));
+        return Math.abs(ebW - bboxW) < snapGrid * 0.6 && Math.abs(ebH - bboxH) < snapGrid * 0.6;
       });
       if (!isDup) copies.push(copy);
     }
