@@ -430,12 +430,14 @@ function redrawAll() {
   drawPenOverlay();
 }
 
-function getPos(e) {
+function getPos(e, forceSnap) {
   const rect = drawCanvas.getBoundingClientRect();
   let x, y;
   if (e.touches) { x = e.touches[0].clientX - rect.left; y = e.touches[0].clientY - rect.top; }
   else { x = e.clientX - rect.left; y = e.clientY - rect.top; }
-  return snapPos(x, y);
+  // Only snap in shape mode (pen/brush need smooth continuous coords)
+  if (forceSnap || drawMode === 'shape') return snapPos(x, y);
+  return { x, y };
 }
 
 function startDraw(e) {
@@ -983,24 +985,10 @@ function buildExtrude() {
         hole.setFromPoints(innerRaw);
         shape.holes.push(hole);
       } else {
-        // Open stroke: left → lineTo right (end) → right reversed → lineTo left (start)
+        // Open stroke: simple left → right-reversed outline, no arc caps
         shape.moveTo(mx(left[0]), my(left[0]));
         for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
-        // End round cap via arc
-        const hw_end = (smoothPts[N-1].w || 4) * 0.5 / cw;
-        const ex = mx(smoothPts[N-1]), ey = my(smoothPts[N-1]);
-        const tanX  = smoothPts[N-1].x - smoothPts[N-2].x;
-        const tanY  = -(smoothPts[N-1].y - smoothPts[N-2].y);
-        const endAngle = Math.atan2(tanY, tanX);
-        shape.absarc(ex, ey, hw_end, endAngle - Math.PI/2, endAngle + Math.PI/2, false);
         for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
-        // Start round cap via arc
-        const hw_start = (smoothPts[0].w || 4) * 0.5 / cw;
-        const sx = mx(smoothPts[0]), sy = my(smoothPts[0]);
-        const tanX2 = smoothPts[1].x - smoothPts[0].x;
-        const tanY2 = -(smoothPts[1].y - smoothPts[0].y);
-        const startAngle = Math.atan2(tanY2, tanX2);
-        shape.absarc(sx, sy, hw_start, startAngle + Math.PI/2, startAngle - Math.PI/2, true);
         shape.closePath();
       }
 
