@@ -123,6 +123,7 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
   </div>
   <div class="sep"></div>
   <button class="act-btn" id="btn-clear">Clear</button>
+  <button class="act-btn" id="btn-undo">Undo</button>
   <button class="act-btn" id="btn-generate">Generate 3D</button>
   <button class="act-btn" id="btn-export">PNG 1×</button>
   <button class="act-btn" id="btn-export-2x" style="border-color:#aaa;color:#aaa;">2×</button>
@@ -669,7 +670,7 @@ function drawPenOverlay() {
 const threeCanvas = document.getElementById('three-canvas');
 const rightEl = document.getElementById('right');
 
-const renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
@@ -1051,6 +1052,10 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   document.getElementById('hint').style.display = '';
 });
 
+document.getElementById('btn-undo').addEventListener('click', () => {
+  if (strokes.length > 0) { strokes.pop(); redrawAll(); }
+});
+
 document.getElementById('mode-brush').addEventListener('change', () => { drawMode = 'brush'; penAnchors = []; penPreview = null; redrawAll(); });
 document.getElementById('mode-pen').addEventListener('change', () => { drawMode = 'pen'; });
 
@@ -1082,7 +1087,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && drawMode === 'pen') { penAnchors = []; penPreview = null; redrawAll(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
     e.preventDefault();
-    if (allStrokes.length > 0) { allStrokes.pop(); redrawAll(); }
+    if (strokes.length > 0) { strokes.pop(); redrawAll(); }
   }
 });
 
@@ -1254,40 +1259,32 @@ function exportPNG(scale) {
   const w = threeCanvas.clientWidth * scale;
   const h = threeCanvas.clientHeight * scale;
 
-  const exportRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-  exportRenderer.setPixelRatio(1);
-  exportRenderer.setSize(w, h);
-  exportRenderer.toneMapping = renderer.toneMapping;
-  exportRenderer.toneMappingExposure = renderer.toneMappingExposure;
-  exportRenderer.outputColorSpace = renderer.outputColorSpace;
-  exportRenderer.shadowMap.enabled = renderer.shadowMap.enabled;
-
-  // Share environment texture with export renderer
-  const exportPmrem = new THREE.PMREMGenerator(exportRenderer);
-  if (scene.environment) {
-    scene.environment = exportPmrem.fromEquirectangular(scene.environment).texture;
-  }
-
+  // Render at export size using main renderer to preserve all materials/env
+  const prevW = threeCanvas.clientWidth;
+  const prevH = threeCanvas.clientHeight;
+  const prevAspect = camera.aspect;
   const prevBg = scene.background;
+
   scene.background = null;
+  renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  exportRenderer.render(scene, camera);
+  composer.setSize(w, h);
+  renderer.render(scene, camera);
 
-  scene.background = prevBg;
-  // Restore original environment
-  const mainPmrem = new THREE.PMREMGenerator(renderer);
-  camera.aspect = threeCanvas.clientWidth / threeCanvas.clientHeight;
-  camera.updateProjectionMatrix();
-
-  exportRenderer.domElement.toBlob(blob => {
+  threeCanvas.toBlob(blob => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `inkit${scale > 1 ? '_' + scale + 'x' : ''}.png`;
     a.click();
     URL.revokeObjectURL(a.href);
-    exportRenderer.dispose();
-    exportPmrem.dispose();
+
+    // Restore original size
+    scene.background = prevBg;
+    renderer.setSize(prevW, prevH);
+    camera.aspect = prevAspect;
+    camera.updateProjectionMatrix();
+    composer.setSize(prevW, prevH);
   }, 'image/png');
 }
 
