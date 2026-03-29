@@ -16,7 +16,7 @@ body{background:#111;color:#ccc;font-family:'Outfit',sans-serif;height:100vh;ove
   flex-wrap:wrap;
 }
 #topbar h1{font-size:14px;color:#f0c040;letter-spacing:2px;margin-right:6px;font-weight:500;}
-.btn-icon{background:none;border:1px solid #333;color:#aaa;border-radius:4px;height:26px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:11px;padding:0 8px;transition:all .15s;}
+.btn-icon{background:none;border:1px solid #333;color:#aaa;border-radius:4px;height:26px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;padding:0 8px;transition:all .15s;}
 .btn-icon:hover{border-color:#f0c040;color:#f0c040;}
 .sym-btn{
   background:#222;border:1px solid #444;color:#aaa;
@@ -56,7 +56,7 @@ body{background:#111;color:#ccc;font-family:'Outfit',sans-serif;height:100vh;ove
   padding:10px 14px;background:#1a1a1a;border-top:1px solid #333;
   display:flex;flex-wrap:wrap;gap:12px;align-items:center;
 }
-.ctrl{display:flex;align-items:center;gap:6px;font-size:11px;color:#888;font-family:'Outfit',sans-serif;}
+.ctrl{display:flex;align-items:center;gap:6px;font-size:13px;color:#888;font-family:'Outfit',sans-serif;}
 .ctrl label{white-space:nowrap;}
 .ctrl span{color:#f0c040;min-width:28px;text-align:right;}
 input[type=range]{width:80px;accent-color:#f0c040;cursor:pointer;}
@@ -124,7 +124,7 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
   <div class="sep"></div>
   <button class="act-btn" id="btn-clear">Clear</button>
   <button class="act-btn" id="btn-undo">Undo</button>
-  <button class="act-btn" id="btn-generate">Generate 3D</button>
+  <button class="act-btn" id="btn-generate">Refresh 3D</button>
   <button class="act-btn" id="btn-export">PNG 1×</button>
   <button class="act-btn" id="btn-export-2x" style="border-color:#aaa;color:#aaa;">2×</button>
   <button class="act-btn" id="btn-export-4x" style="border-color:#aaa;color:#aaa;">4×</button>
@@ -181,39 +181,13 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
         <span id="tube-val">0.015</span>
       </div>
       <div class="ctrl">
-        <label>Z Spread</label>
-        <input type="range" id="z-spread" min="0" max="100" value="0"/>
-        <span id="z-val">0</span>
-      </div>
-      <div class="ctrl">
-        <label>Smooth</label>
-        <input type="range" id="smooth" min="0" max="5" value="1"/>
-        <span id="smooth-val">Med</span>
-      </div>
-      <div class="ctrl">
-        <label>Strength</label>
-        <input type="range" id="strength" min="1" max="100" value="6"/>
-        <span id="strength-val">0.06</span>
-      </div>
-      <div class="ctrl">
-        <label>Loose</label>
-        <input type="range" id="loose" min="20" max="300" value="80"/>
-        <span id="loose-val">80</span>
-      </div>
-      <div class="ctrl">
         <label>Seed</label>
         <input type="range" id="seed-slider" min="0" max="999" value="0"/>
         <button class="act-btn" id="btn-random-seed" style="padding:2px 8px;font-size:10px;">🎲</button>
       </div>
-      <div style="height:1px;background:#333;margin:6px 0 4px;"></div>
-      <div style="font-size:9px;color:#555;letter-spacing:1px;margin-bottom:4px;">CANVAS</div>
       <div class="ctrl">
         <label>Brush Color</label>
         <input type="color" id="stroke-color" value="#c8a020"/>
-      </div>
-      <div class="ctrl">
-        <label>Model Color</label>
-        <input type="color" id="model-color" value="#c8a020"/>
       </div>
     </div>
   </div>
@@ -244,6 +218,13 @@ input[type=color]{width:26px;height:20px;border:1px solid #444;background:none;c
       <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Metalness<input type="range" id="mat-metalness" min="0" max="100" value="100" style="width:80px;"/></label>
       <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Roughness<input type="range" id="mat-roughness" min="0" max="100" value="0" style="width:80px;"/></label>
       <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Clearcoat<input type="range" id="mat-clearcoat" min="0" max="100" value="0" style="width:80px;"/></label>
+      <div style="height:1px;background:#333;margin:4px 0;"></div>
+      <div style="font-size:10px;color:#666;margin-bottom:2px;letter-spacing:1px;">3D SHAPE</div>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Z Spread<input type="range" id="z-spread" min="0" max="100" value="0" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Smooth<input type="range" id="smooth" min="0" max="5" value="1" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Strength<input type="range" id="strength" min="1" max="100" value="6" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Loose<input type="range" id="loose" min="20" max="300" value="80" style="width:80px;"/></label>
+      <label style="font-size:10px;color:#888;display:flex;align-items:center;justify-content:space-between;">Model Color<input type="color" id="model-color" value="#c8a020" style="width:26px;height:18px;border:1px solid #444;background:none;cursor:pointer;padding:0;border-radius:2px;"/></label>
     </div>
     <div id="hint">Draw on the left →<br/>then Generate 3D</div>
   </div>
@@ -1053,7 +1034,7 @@ document.getElementById('btn-clear').addEventListener('click', () => {
 });
 
 document.getElementById('btn-undo').addEventListener('click', () => {
-  if (strokes.length > 0) { strokes.pop(); redrawAll(); }
+  if (strokes.length > 0) { strokes.pop(); redrawAll(); if (sculpture) build3D(); }
 });
 
 document.getElementById('mode-brush').addEventListener('change', () => { drawMode = 'brush'; penAnchors = []; penPreview = null; redrawAll(); });
@@ -1071,13 +1052,21 @@ document.getElementById('about-modal').addEventListener('click', e => {
 });
 
 // Dark/Light mode toggle (replaces bright-toggle checkbox)
-let isBright = false;
+let isBright = true;
 document.getElementById('btn-theme').addEventListener('click', function() {
   isBright = !isBright;
   this.textContent = isBright ? '☽' : '☀';
   // Trigger existing bright-toggle logic by simulating change
   const chk = document.getElementById('bright-toggle');
   chk.checked = isBright;
+  chk.dispatchEvent(new Event('change'));
+});
+// Init bright mode on load
+window.addEventListener('load', () => {
+  const btn = document.getElementById('btn-theme');
+  btn.textContent = '☽';
+  const chk = document.getElementById('bright-toggle');
+  chk.checked = true;
   chk.dispatchEvent(new Event('change'));
 });
 
@@ -1087,7 +1076,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && drawMode === 'pen') { penAnchors = []; penPreview = null; redrawAll(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
     e.preventDefault();
-    if (strokes.length > 0) { strokes.pop(); redrawAll(); }
+    if (strokes.length > 0) { strokes.pop(); redrawAll(); if (sculpture) build3D(); }
   }
 });
 
@@ -1256,35 +1245,33 @@ document.getElementById('strength').addEventListener('input', e => {
 
 // Export PNG with transparent background
 function exportPNG(scale) {
-  const w = threeCanvas.clientWidth * scale;
-  const h = threeCanvas.clientHeight * scale;
+  const srcW = threeCanvas.clientWidth;
+  const srcH = threeCanvas.clientHeight;
+  const outW = srcW * scale;
+  const outH = srcH * scale;
 
-  // Render at export size using main renderer to preserve all materials/env
-  const prevW = threeCanvas.clientWidth;
-  const prevH = threeCanvas.clientHeight;
-  const prevAspect = camera.aspect;
+  // Render one frame to main canvas with bg=null for transparency
   const prevBg = scene.background;
-
   scene.background = null;
-  renderer.setSize(w, h);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-  composer.setSize(w, h);
   renderer.render(scene, camera);
 
-  threeCanvas.toBlob(blob => {
+  // Copy from main canvas and scale
+  const offscreen = document.createElement('canvas');
+  offscreen.width = outW;
+  offscreen.height = outH;
+  const ctx = offscreen.getContext('2d');
+  ctx.drawImage(threeCanvas, 0, 0, outW, outH);
+
+  // Restore
+  scene.background = prevBg;
+  renderer.render(scene, camera);
+
+  offscreen.toBlob(blob => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `inkit${scale > 1 ? '_' + scale + 'x' : ''}.png`;
     a.click();
     URL.revokeObjectURL(a.href);
-
-    // Restore original size
-    scene.background = prevBg;
-    renderer.setSize(prevW, prevH);
-    camera.aspect = prevAspect;
-    camera.updateProjectionMatrix();
-    composer.setSize(prevW, prevH);
   }, 'image/png');
 }
 
