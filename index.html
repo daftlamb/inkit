@@ -979,24 +979,22 @@ function buildExtrude() {
         // Open stroke: left side → semicircle cap at end → right side → semicircle cap at start
         shape.moveTo(mx(left[0]), my(left[0]));
         for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
-        // End cap: semicircle
+        // End cap: semicircle (tangent in 3D coords = flip Y)
         const hw_end = (smoothPts[N-1].w || 4) * 0.5 / cw;
         const ex = mx(smoothPts[N-1]), ey = my(smoothPts[N-1]);
-        const prevPt = smoothPts[N-2];
-        const tanX = smoothPts[N-1].x - prevPt.x, tanY = smoothPts[N-1].y - prevPt.y;
-        const tanLen = Math.hypot(tanX, tanY) || 1;
-        const endAngle = Math.atan2(-tanY / tanLen, tanX / tanLen);
+        const tanX  = smoothPts[N-1].x - smoothPts[N-2].x;
+        const tanY  = -(smoothPts[N-1].y - smoothPts[N-2].y); // flip Y for 3D
+        const endAngle = Math.atan2(tanY, tanX);
         shape.absarc(ex, ey, hw_end, endAngle - Math.PI / 2, endAngle + Math.PI / 2, false);
         // Right side reversed
         for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
         // Start cap: semicircle
         const hw_start = (smoothPts[0].w || 4) * 0.5 / cw;
         const sx = mx(smoothPts[0]), sy = my(smoothPts[0]);
-        const nextPt = smoothPts[1];
-        const tanX2 = nextPt.x - smoothPts[0].x, tanY2 = nextPt.y - smoothPts[0].y;
-        const tanLen2 = Math.hypot(tanX2, tanY2) || 1;
-        const startAngle = Math.atan2(-tanY2 / tanLen2, tanX2 / tanLen2);
-        shape.absarc(sx, sy, hw_start, startAngle + Math.PI / 2, startAngle + Math.PI * 3 / 2, false);
+        const tanX2  = smoothPts[1].x - smoothPts[0].x;
+        const tanY2  = -(smoothPts[1].y - smoothPts[0].y); // flip Y for 3D
+        const startAngle = Math.atan2(tanY2, tanX2);
+        shape.absarc(sx, sy, hw_start, startAngle + Math.PI / 2, startAngle - Math.PI / 2, true);
         shape.closePath();
       }
 
