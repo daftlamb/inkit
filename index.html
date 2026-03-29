@@ -974,18 +974,23 @@ function buildExtrude() {
       const shape = new THREE.Shape();
 
       if (isShape) {
-        // left=inner, right=outer (CW path normal points inward)
-        // Use right as outer, left as hole
-        const outerRaw = right.map(p => new THREE.Vector2(mx(p), my(p)));
-        const innerRaw = left.map(p => new THREE.Vector2(mx(p), my(p)));
-        if (THREE.ShapeUtils.isClockWise(outerRaw)) outerRaw.reverse();
-        if (!THREE.ShapeUtils.isClockWise(innerRaw)) innerRaw.reverse();
-        shape.setFromPoints(outerRaw);
+        // Shape ring: outer CCW + inner CW hole
+        // For CW canvas path: normal (-dy,dx) points inward → left=inner, right=outer
+        const outerPts2d = right.map(p => new THREE.Vector2(mx(p), my(p)));
+        const innerPts2d = left.map(p => new THREE.Vector2(mx(p), my(p)));
+        // Ensure outer CCW, inner CW
+        if (THREE.ShapeUtils.isClockWise(outerPts2d)) outerPts2d.reverse();
+        if (!THREE.ShapeUtils.isClockWise(innerPts2d)) innerPts2d.reverse();
+        shape.moveTo(outerPts2d[0].x, outerPts2d[0].y);
+        for (let i = 1; i < outerPts2d.length; i++) shape.lineTo(outerPts2d[i].x, outerPts2d[i].y);
+        shape.closePath();
         const hole = new THREE.Path();
-        hole.setFromPoints(innerRaw);
+        hole.moveTo(innerPts2d[0].x, innerPts2d[0].y);
+        for (let i = 1; i < innerPts2d.length; i++) hole.lineTo(innerPts2d[i].x, innerPts2d[i].y);
+        hole.closePath();
         shape.holes.push(hole);
       } else {
-        // Open stroke: simple left → right-reversed outline, no arc caps
+        // Open stroke: 875b3fa original logic
         shape.moveTo(mx(left[0]), my(left[0]));
         for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
         for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
@@ -999,6 +1004,16 @@ function buildExtrude() {
       geo.translate(0, 0, -depthVal / 2);
       geo.computeVertexNormals();
       group.add(new THREE.Mesh(geo, buildMaterial(color)));
+
+      // End caps for open strokes (875b3fa original)
+      if (!isShape) {
+        const capR = (smoothPts[0].w || 4) * 0.5 / cw;
+        [smoothPts[0], smoothPts[smoothPts.length - 1]].forEach(p => {
+          const capGeo = new THREE.SphereGeometry(capR, 12, 8);
+          capGeo.translate(mx(p), my(p), 0);
+          group.add(new THREE.Mesh(capGeo, buildMaterial(color)));
+        });
+      }
     }
   }
 
