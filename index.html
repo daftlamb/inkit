@@ -425,7 +425,11 @@ function redrawAll() {
   if (document.getElementById('grid-toggle')?.checked) draw2DGrid();
   // Completed strokes
   for (const stroke of strokes) {
-    for (const copy of getSymmetryPoints(stroke.noTurbulence ? stroke.pts : applyTurbulence(stroke.pts))) {
+    // Shape strokes don't use symmetry — they are already symmetric
+    const copies = stroke.noTurbulence
+      ? [stroke.pts]
+      : getSymmetryPoints(applyTurbulence(stroke.pts));
+    for (const copy of copies) {
       drawStroke(copy, 1.0);
       // Close shape paths: draw final segment back to start
       if (stroke.noTurbulence && copy.length > 2) {
@@ -945,7 +949,9 @@ function buildExtrude() {
   const my = p => -(p.y - ch / 2) / ch;
 
   for (const stroke of strokes) {
-    const allCopies = getSymmetryPoints(stroke.noTurbulence ? stroke.pts : applyTurbulence(stroke.pts));
+    const allCopies = stroke.noTurbulence
+      ? [stroke.pts]
+      : getSymmetryPoints(applyTurbulence(stroke.pts));
     for (const pts of allCopies) {
       if (pts.length < 2) continue;
 
