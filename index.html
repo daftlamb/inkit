@@ -344,7 +344,7 @@ function getSymmetryPoints(pts) {
   return copies;
 }
 
-function drawStroke(pts, alpha) {
+function drawStroke(pts, alpha, closed) {
   if (pts.length < 2) return;
   const color = document.getElementById('stroke-color').value;
   const r = parseInt(color.slice(1,3),16);
@@ -355,12 +355,19 @@ function drawStroke(pts, alpha) {
   dc.lineCap = 'round';
   dc.lineJoin = 'round';
   dc.strokeStyle = `rgb(${r},${g},${b})`;
-  // Draw each segment separately so lineWidth varies per point
   for (let i = 1; i < pts.length; i++) {
     dc.beginPath();
     dc.lineWidth = pts[i].w;
     dc.moveTo(pts[i-1].x, pts[i-1].y);
     dc.lineTo(pts[i].x, pts[i].y);
+    dc.stroke();
+  }
+  // Close shape paths
+  if (closed && pts.length > 2) {
+    dc.beginPath();
+    dc.lineWidth = pts[0].w;
+    dc.moveTo(pts[pts.length-1].x, pts[pts.length-1].y);
+    dc.lineTo(pts[0].x, pts[0].y);
     dc.stroke();
   }
   dc.globalAlpha = 1;
@@ -418,7 +425,7 @@ function redrawAll() {
   // Completed strokes
   for (const stroke of strokes) {
     for (const copy of getSymmetryPoints(stroke.noTurbulence ? stroke.pts : applyTurbulence(stroke.pts))) {
-      drawStroke(copy, 1.0);
+      drawStroke(copy, 1.0, !!stroke.noTurbulence);
     }
   }
   // Current stroke (ghost)
@@ -528,6 +535,7 @@ drawCanvas.addEventListener('mousemove', e => {
       dc.lineWidth = 1.5; dc.setLineDash([4,4]); dc.beginPath();
       dc.moveTo(preview[0].x, preview[0].y);
       preview.forEach(p => dc.lineTo(p.x, p.y));
+      dc.closePath();
       dc.stroke(); dc.restore();
     }
   } else if (drawMode === 'pen') penMove(e);
