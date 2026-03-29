@@ -992,29 +992,14 @@ function buildExtrude() {
 
       // Build shape outline
       if (isShape) {
-        // Ring via ExtrudeGeometry: outer path + inner hole
-        // Use centroid-based inward offset for inner ring
-        const hw = (pts[0].w || 4) * 0.5 / cw;
-        const pts2d = pts.map(p => ({ x: mx(p), y: my(p) }));
-        const cx2 = pts2d.reduce((s, p) => s + p.x, 0) / pts2d.length;
-        const cy2 = pts2d.reduce((s, p) => s + p.y, 0) / pts2d.length;
+        // Ring via ExtrudeGeometry using normal-based left/right offset (uniform width)
+        // left/right already computed above with wrap-around normals
+        // right = outer (normal points outward for CCW winding after my() flip)
+        const outerPts = right.map(p => new THREE.Vector2(mx(p), my(p)));
+        const innerPts = left.map(p => new THREE.Vector2(mx(p), my(p)));
 
-        // outer: expand each point away from centroid by hw
-        // inner: shrink each point toward centroid by hw
-        const outerPts = pts2d.map(p => {
-          const dx = p.x - cx2, dy = p.y - cy2;
-          const len = Math.hypot(dx, dy) || 1;
-          return new THREE.Vector2(p.x + dx / len * hw, p.y + dy / len * hw);
-        });
-        const innerPts = pts2d.map(p => {
-          const dx = p.x - cx2, dy = p.y - cy2;
-          const len = Math.hypot(dx, dy) || 1;
-          return new THREE.Vector2(p.x - dx / len * hw, p.y - dy / len * hw);
-        });
-
-        // outer must be CCW, inner must be CW for Three.js holes
-        if (THREE.ShapeUtils.isClockWise(outerPts)) outerPts.reverse();
-        if (!THREE.ShapeUtils.isClockWise(innerPts)) innerPts.reverse();
+        outerPts.reverse(); // ensure CCW
+        // inner stays CW
 
         const ringShape = new THREE.Shape(outerPts);
         const ringHole = new THREE.Path(innerPts);
