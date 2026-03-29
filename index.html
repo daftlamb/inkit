@@ -985,7 +985,8 @@ function buildExtrude() {
       // Build shape outline
       if (isShape) {
         // Ring: TubeGeometry along closed path
-        const tubeR = (pts[0].w || 4) * 0.5 / cw;
+        const strokeW = (pts[0].w || 4) * 0.5 / cw;
+        const tubeR = Math.max(strokeW, depthVal * 0.5); // depth slider controls thickness
         const pts3d = pts.map(p => new THREE.Vector3(mx(p), my(p), 0));
         // Use CurvePath with LineCurve3 for sharp corners (rect/poly)
         // Use CatmullRomCurve3 for circle (many pts = smooth anyway)
