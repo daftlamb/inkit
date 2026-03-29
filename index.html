@@ -157,6 +157,18 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
     <input type="radio" name="draw-mode" id="mode-pen"/> Pen
   </label>
+  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="draw-mode" id="mode-shape"/> Shape
+  </label>
+  <select id="shape-type" style="font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface);color:var(--fg);border:1px solid var(--border);border-radius:2px;padding:2px 4px;cursor:pointer;">
+    <option value="circle">Circle</option>
+    <option value="rect">Rect</option>
+    <option value="poly">Poly</option>
+    <option value="star">Star</option>
+  </select>
+  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
+    Sides <input type="number" id="shape-sides" value="6" min="3" max="24" style="width:36px;font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface);color:var(--fg);border:1px solid var(--border);border-radius:2px;padding:1px 4px;"/>
+  </label>
   <div class="sep"></div>
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="bloom-toggle"/> Bloom
@@ -262,7 +274,7 @@ let lastX = 0, lastY = 0, lastT = 0;
 let autoGenTimer = null;
 let poolTimer = null;   // ink pooling timer when mouse is still
 let poolW = 0;          // current pooling width
-let drawMode = 'brush'; // 'brush' | 'pen'
+let drawMode = 'brush'; // 'brush' | 'pen' | 'shape'
 let penAnchors = [];    // [{x,y,cpIn:{x,y},cpOut:{x,y}}]
 let penDragging = null; // null | {type:'cp'|'anchor'|'w', idx, which:'in'|'out', startY, startW}
 let penPreview = null;  // current mouse pos for preview segment
@@ -487,14 +499,14 @@ function endDraw(e) {
   }
 }
 
-drawCanvas.addEventListener('mousedown', e => { drawMode === 'pen' ? penDown(e) : startDraw(e); });
-drawCanvas.addEventListener('mousemove', e => { drawMode === 'pen' ? penMove(e) : moveDraw(e); });
-drawCanvas.addEventListener('mouseup',   e => { drawMode === 'pen' ? penUp(e)   : endDraw(e); });
-drawCanvas.addEventListener('mouseleave', e => { if (drawMode !== 'pen') endDraw(e); });
+drawCanvas.addEventListener('mousedown', e => { drawMode === 'pen' ? penDown(e) : drawMode === 'shape' ? shapeDown(e) : startDraw(e); });
+drawCanvas.addEventListener('mousemove', e => { drawMode === 'pen' ? penMove(e) : drawMode === 'shape' ? shapeMove(e) : moveDraw(e); });
+drawCanvas.addEventListener('mouseup',   e => { drawMode === 'pen' ? penUp(e)   : drawMode === 'shape' ? shapeUp(e)   : endDraw(e); });
+drawCanvas.addEventListener('mouseleave', e => { if (drawMode !== 'pen' && drawMode !== 'shape') endDraw(e); });
 drawCanvas.addEventListener('dblclick',  e => { if (drawMode === 'pen') penCommit(); });
-drawCanvas.addEventListener('touchstart', e => { drawMode === 'pen' ? penDown(e) : startDraw(e); }, { passive: false });
-drawCanvas.addEventListener('touchmove',  e => { drawMode === 'pen' ? penMove(e) : moveDraw(e); }, { passive: false });
-drawCanvas.addEventListener('touchend',   e => { drawMode === 'pen' ? penUp(e)   : endDraw(e); });
+drawCanvas.addEventListener('touchstart', e => { drawMode === 'pen' ? penDown(e) : drawMode === 'shape' ? shapeDown(e) : startDraw(e); }, { passive: false });
+drawCanvas.addEventListener('touchmove',  e => { drawMode === 'pen' ? penMove(e) : drawMode === 'shape' ? shapeMove(e) : moveDraw(e); }, { passive: false });
+drawCanvas.addEventListener('touchend',   e => { drawMode === 'pen' ? penUp(e)   : drawMode === 'shape' ? shapeUp(e)   : endDraw(e); });
 
 // ─── PEN (BEZIER) MODE ───────────────────────────────────────────────────────
 function penDown(e) {
@@ -885,12 +897,11 @@ function buildExtrude() {
       });
 
       const left = [], right = [];
+      // Use tangent from curve for stable normals (avoids end-point jitter)
+      const tangents = curve.getTangents(sampleCount);
       for (let i = 0; i < smoothPts.length; i++) {
-        const prev = smoothPts[Math.max(0, i - 1)];
-        const next = smoothPts[Math.min(smoothPts.length - 1, i + 1)];
-        const dx = next.x - prev.x, dy = next.y - prev.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = -dy / len, ny = dx / len;
+        const tan = tangents[i] || tangents[tangents.length - 1];
+        const nx = -tan.y, ny = tan.x;
         const hw = (smoothPts[i].w || 4) * 0.5;
         left.push({ x: smoothPts[i].x + nx * hw, y: smoothPts[i].y + ny * hw });
         right.push({ x: smoothPts[i].x - nx * hw, y: smoothPts[i].y - ny * hw });
@@ -1072,7 +1083,89 @@ document.getElementById('btn-undo').addEventListener('click', () => {
 });
 
 document.getElementById('mode-brush').addEventListener('change', () => { drawMode = 'brush'; penAnchors = []; penPreview = null; redrawAll(); });
-document.getElementById('mode-pen').addEventListener('change', () => { drawMode = 'pen'; });
+document.getElementById('mode-pen').addEventListener('change', () => { drawMode = 'pen'; penAnchors = []; penPreview = null; redrawAll(); });
+document.getElementById('mode-shape').addEventListener('change', () => { drawMode = 'shape'; penAnchors = []; penPreview = null; redrawAll(); });
+
+// ─── SHAPE MODE ──────────────────────────────────────────────────────────────
+let shapeOrigin = null, shapePreviewPts = null;
+
+function getShapePoints(cx, cy, rx, ry) {
+  const type = document.getElementById('shape-type').value;
+  const sides = Math.max(3, parseInt(document.getElementById('shape-sides').value) || 6);
+  const pts = [];
+  const bs = parseFloat(document.getElementById('brush-size').value);
+
+  if (type === 'circle') {
+    const N = Math.max(48, sides * 4);
+    for (let i = 0; i <= N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      pts.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry, w: bs });
+    }
+  } else if (type === 'rect') {
+    const corners = [
+      { x: cx - rx, y: cy - ry }, { x: cx + rx, y: cy - ry },
+      { x: cx + rx, y: cy + ry }, { x: cx - rx, y: cy + ry },
+      { x: cx - rx, y: cy - ry }
+    ];
+    corners.forEach(p => pts.push({ x: p.x, y: p.y, w: bs }));
+  } else if (type === 'poly') {
+    for (let i = 0; i <= sides; i++) {
+      const a = (i / sides) * Math.PI * 2 - Math.PI / 2;
+      pts.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry, w: bs });
+    }
+  } else if (type === 'star') {
+    const inner = 0.45;
+    for (let i = 0; i <= sides * 2; i++) {
+      const a = (i / (sides * 2)) * Math.PI * 2 - Math.PI / 2;
+      const r = i % 2 === 0 ? 1 : inner;
+      pts.push({ x: cx + Math.cos(a) * rx * r, y: cy + Math.sin(a) * ry * r, w: bs });
+    }
+  }
+  return pts;
+}
+
+function shapeDown(e) {
+  const pos = getPos(e);
+  shapeOrigin = pos;
+  shapePreviewPts = null;
+}
+
+function shapeMove(e) {
+  if (!shapeOrigin) return;
+  const pos = getPos(e);
+  const rx = Math.abs(pos.x - shapeOrigin.x);
+  const ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
+  shapePreviewPts = getShapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry);
+  redrawAll();
+  // Draw preview
+  if (shapePreviewPts && shapePreviewPts.length > 1) {
+    dc.save();
+    dc.strokeStyle = document.getElementById('stroke-color').value;
+    dc.lineWidth = 1.5;
+    dc.setLineDash([4, 4]);
+    dc.beginPath();
+    dc.moveTo(shapePreviewPts[0].x, shapePreviewPts[0].y);
+    shapePreviewPts.forEach(p => dc.lineTo(p.x, p.y));
+    dc.stroke();
+    dc.restore();
+  }
+}
+
+function shapeUp(e) {
+  if (!shapeOrigin) return;
+  const pos = getPos(e);
+  const rx = Math.abs(pos.x - shapeOrigin.x);
+  const ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
+  if (rx > 2 || ry > 2) {
+    const pts = getShapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry);
+    strokes.push({ pts });
+    redrawAll();
+    clearTimeout(autoGenTimer);
+    autoGenTimer = setTimeout(build3D, 400);
+  }
+  shapeOrigin = null;
+  shapePreviewPts = null;
+}
 
 // About modal
 document.getElementById('btn-about').addEventListener('click', () => {
