@@ -915,29 +915,37 @@ function buildExtrude() {
   const depthVal = parseFloat(document.getElementById('extrude-depth').value) / 500;
   const bevelVal = parseFloat(document.getElementById('extrude-bevel').value) / 2000;
   const group = new THREE.Group();
+  const mx = p => (p.x - cw / 2) / cw;
+  const my = p => -(p.y - ch / 2) / ch;
 
   for (const stroke of strokes) {
     const allCopies = getSymmetryPoints(stroke.noTurbulence ? stroke.pts : applyTurbulence(stroke.pts));
     for (const pts of allCopies) {
       if (pts.length < 2) continue;
 
-      // Smooth the stroke with CatmullRom curve, then resample
-      const curve = new THREE.CatmullRomCurve3(
-        pts.map(p => new THREE.Vector3(p.x, p.y, 0)), false, 'catmullrom', 0.5
-      );
-      const sampleCount = Math.max(pts.length * 6, 60);
-      const smoothPts = curve.getPoints(sampleCount).map((v, i) => {
-        const t = i / sampleCount;
-        const si = Math.min(Math.floor(t * (pts.length - 1)), pts.length - 2);
-        const frac = t * (pts.length - 1) - si;
-        const w = pts[si].w * (1 - frac) + pts[si + 1].w * frac;
-        return { x: v.x, y: v.y, w };
-      });
+      const isShape = !!stroke.noTurbulence;
 
+      // For shapes: use pts directly (no CatmullRom, preserve sharp corners)
+      // For brush strokes: CatmullRom smooth
+      const smoothPts = isShape ? pts : (() => {
+        const curve = new THREE.CatmullRomCurve3(
+          pts.map(p => new THREE.Vector3(p.x, p.y, 0)), false, 'catmullrom', 0.5
+        );
+        const n = Math.max(pts.length * 6, 60);
+        return curve.getPoints(n).map((v, i) => {
+          const t = i / n;
+          const si = Math.min(Math.floor(t * (pts.length - 1)), pts.length - 2);
+          const frac = t * (pts.length - 1) - si;
+          return { x: v.x, y: v.y, w: pts[si].w * (1 - frac) + pts[si + 1].w * frac };
+        });
+      })();
+
+      // Compute offset outline
       const left = [], right = [];
-      for (let i = 0; i < smoothPts.length; i++) {
+      const N = smoothPts.length;
+      for (let i = 0; i < N; i++) {
         const prev = smoothPts[Math.max(0, i - 1)];
-        const next = smoothPts[Math.min(smoothPts.length - 1, i + 1)];
+        const next = smoothPts[Math.min(N - 1, i + 1)];
         const dx = next.x - prev.x, dy = next.y - prev.y;
         const len = Math.hypot(dx, dy) || 1;
         const nx = -dy / len, ny = dx / len;
@@ -946,37 +954,51 @@ function buildExtrude() {
         right.push({ x: smoothPts[i].x - nx * hw, y: smoothPts[i].y - ny * hw });
       }
 
+      // Build shape outline
       const shape = new THREE.Shape();
-      const mx = p => (p.x - cw / 2) / cw;
-      const my = p => -(p.y - ch / 2) / ch;
 
-      shape.moveTo(mx(left[0]), my(left[0]));
-      for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
-      for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
-      shape.closePath();
+      if (isShape) {
+        // Closed shape: outer then inner (reversed) as hole
+        shape.moveTo(mx(left[0]), my(left[0]));
+        for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
+        shape.closePath();
+        const hole = new THREE.Path();
+        hole.moveTo(mx(right[right.length - 1]), my(right[right.length - 1]));
+        for (let i = right.length - 2; i >= 0; i--) hole.lineTo(mx(right[i]), my(right[i]));
+        hole.closePath();
+        shape.holes.push(hole);
+      } else {
+        // Open stroke: left side → semicircle cap at end → right side → semicircle cap at start
+        shape.moveTo(mx(left[0]), my(left[0]));
+        for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
+        // End cap: semicircle
+        const hw_end = (smoothPts[N-1].w || 4) * 0.5 / cw;
+        const ex = mx(smoothPts[N-1]), ey = my(smoothPts[N-1]);
+        const prevPt = smoothPts[N-2];
+        const tanX = smoothPts[N-1].x - prevPt.x, tanY = smoothPts[N-1].y - prevPt.y;
+        const tanLen = Math.hypot(tanX, tanY) || 1;
+        const endAngle = Math.atan2(-tanY / tanLen, tanX / tanLen);
+        shape.absarc(ex, ey, hw_end, endAngle - Math.PI / 2, endAngle + Math.PI / 2, false);
+        // Right side reversed
+        for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
+        // Start cap: semicircle
+        const hw_start = (smoothPts[0].w || 4) * 0.5 / cw;
+        const sx = mx(smoothPts[0]), sy = my(smoothPts[0]);
+        const nextPt = smoothPts[1];
+        const tanX2 = nextPt.x - smoothPts[0].x, tanY2 = nextPt.y - smoothPts[0].y;
+        const tanLen2 = Math.hypot(tanX2, tanY2) || 1;
+        const startAngle = Math.atan2(-tanY2 / tanLen2, tanX2 / tanLen2);
+        shape.absarc(sx, sy, hw_start, startAngle + Math.PI / 2, startAngle + Math.PI * 3 / 2, false);
+        shape.closePath();
+      }
 
       const geo = new THREE.ExtrudeGeometry(shape, {
-        depth: depthVal,
-        bevelEnabled: bevelVal > 0,
-        bevelSize: bevelVal,
-        bevelThickness: bevelVal,
-        bevelSegments: 6,
+        depth: depthVal, bevelEnabled: bevelVal > 0,
+        bevelSize: bevelVal, bevelThickness: bevelVal, bevelSegments: 6,
       });
       geo.translate(0, 0, -depthVal / 2);
       geo.computeVertexNormals();
-
-      const mat = buildMaterial(color);
-      const mesh = new THREE.Mesh(geo, mat);
-      group.add(mesh);
-
-      // End caps: spheres at first and last point of open strokes
-      const hw0 = (smoothPts[0].w || 4) * 0.5;
-      const hwN = (smoothPts[smoothPts.length - 1].w || 4) * 0.5;
-      [[smoothPts[0], hw0], [smoothPts[smoothPts.length - 1], hwN]].forEach(([p, hw]) => {
-        const capGeo = new THREE.SphereGeometry(hw / cw, 12, 8);
-        capGeo.translate(mx(p), my(p), 0);
-        group.add(new THREE.Mesh(capGeo, buildMaterial(color)));
-      });
+      group.add(new THREE.Mesh(geo, buildMaterial(color)));
     }
   }
 
