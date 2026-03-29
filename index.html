@@ -871,16 +871,29 @@ function buildExtrude() {
     for (const pts of allCopies) {
       if (pts.length < 2) continue;
 
+      // Smooth the stroke with CatmullRom curve, then resample
+      const curve = new THREE.CatmullRomCurve3(
+        pts.map(p => new THREE.Vector3(p.x, p.y, 0)), false, 'catmullrom', 0.5
+      );
+      const sampleCount = Math.max(pts.length * 6, 60);
+      const smoothPts = curve.getPoints(sampleCount).map((v, i) => {
+        const t = i / sampleCount;
+        const si = Math.min(Math.floor(t * (pts.length - 1)), pts.length - 2);
+        const frac = t * (pts.length - 1) - si;
+        const w = pts[si].w * (1 - frac) + pts[si + 1].w * frac;
+        return { x: v.x, y: v.y, w };
+      });
+
       const left = [], right = [];
-      for (let i = 0; i < pts.length; i++) {
-        const prev = pts[Math.max(0, i - 1)];
-        const next = pts[Math.min(pts.length - 1, i + 1)];
+      for (let i = 0; i < smoothPts.length; i++) {
+        const prev = smoothPts[Math.max(0, i - 1)];
+        const next = smoothPts[Math.min(smoothPts.length - 1, i + 1)];
         const dx = next.x - prev.x, dy = next.y - prev.y;
         const len = Math.hypot(dx, dy) || 1;
         const nx = -dy / len, ny = dx / len;
-        const hw = (pts[i].w || 4) * 0.5;
-        left.push({ x: pts[i].x + nx * hw, y: pts[i].y + ny * hw });
-        right.push({ x: pts[i].x - nx * hw, y: pts[i].y - ny * hw });
+        const hw = (smoothPts[i].w || 4) * 0.5;
+        left.push({ x: smoothPts[i].x + nx * hw, y: smoothPts[i].y + ny * hw });
+        right.push({ x: smoothPts[i].x - nx * hw, y: smoothPts[i].y - ny * hw });
       }
 
       const shape = new THREE.Shape();
@@ -907,8 +920,8 @@ function buildExtrude() {
       group.add(mesh);
 
       // End caps: spheres at first and last point
-      const capR = (pts[0].w || 4) * 0.5 / cw;
-      const p0 = pts[0], pN = pts[pts.length - 1];
+      const capR = (smoothPts[0].w || 4) * 0.5 / cw;
+      const p0 = smoothPts[0], pN = smoothPts[smoothPts.length - 1];
       [p0, pN].forEach(p => {
         const capGeo = new THREE.SphereGeometry(capR, 12, 8);
         capGeo.translate(mx(p), my(p), 0);
