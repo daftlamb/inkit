@@ -177,6 +177,9 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
     <input type="checkbox" id="grid-toggle" checked/> Grid
   </label>
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
+    <input type="checkbox" id="snap-toggle"/> Snap
+  </label>
+  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="grain-toggle"/> Grain
   </label>
   <input type="checkbox" id="bright-toggle" style="display:none"/>
@@ -422,10 +425,21 @@ function redrawAll() {
 
 function getPos(e) {
   const rect = drawCanvas.getBoundingClientRect();
+  let x, y;
   if (e.touches) {
-    return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    x = e.touches[0].clientX - rect.left;
+    y = e.touches[0].clientY - rect.top;
+  } else {
+    x = e.clientX - rect.left;
+    y = e.clientY - rect.top;
   }
-  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  // Snap to grid
+  if (document.getElementById('snap-toggle')?.checked) {
+    const gridSize = drawCanvas.width / 24; // 24 divisions = match 3D grid
+    x = Math.round(x / gridSize) * gridSize;
+    y = Math.round(y / gridSize) * gridSize;
+  }
+  return { x, y };
 }
 
 function startDraw(e) {
@@ -885,11 +899,11 @@ function buildExtrude() {
 
       const mx = p => (p.x - cw / 2) / cw;
       const my = p => -(p.y - ch / 2) / ch;
+      const isClosed = !!stroke.closed;
 
       const geo = (() => {
-        // All strokes (including shapes) use CatmullRom + offset outline
         const curve = new THREE.CatmullRomCurve3(
-          pts.map(p => new THREE.Vector3(p.x, p.y, 0)), false, 'catmullrom', 0.5
+          pts.map(p => new THREE.Vector3(p.x, p.y, 0)), isClosed, 'catmullrom', 0.5
         );
         const sampleCount = Math.max(pts.length * 6, 60);
         const smoothPts = curve.getPoints(sampleCount).map((v, i) => {
@@ -911,7 +925,9 @@ function buildExtrude() {
         const shape = new THREE.Shape();
         shape.moveTo(mx(left[0]), my(left[0]));
         for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
-        for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
+        if (!isClosed) {
+          for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
+        }
         shape.closePath();
         const g = new THREE.ExtrudeGeometry(shape, {
           depth: depthVal, bevelEnabled: bevelVal > 0,
@@ -920,13 +936,15 @@ function buildExtrude() {
         g.translate(0, 0, -depthVal / 2);
         g.computeVertexNormals();
 
-        // End caps
-        const capR = (smoothPts[0].w || 4) * 0.5 / cw;
-        [smoothPts[0], smoothPts[smoothPts.length - 1]].forEach(p => {
-          const capGeo = new THREE.SphereGeometry(capR, 12, 8);
-          capGeo.translate(mx(p), my(p), 0);
-          group.add(new THREE.Mesh(capGeo, buildMaterial(color)));
-        });
+        // End caps only for open strokes
+        if (!isClosed) {
+          const capR = (smoothPts[0].w || 4) * 0.5 / cw;
+          [smoothPts[0], smoothPts[smoothPts.length - 1]].forEach(p => {
+            const capGeo = new THREE.SphereGeometry(capR, 12, 8);
+            capGeo.translate(mx(p), my(p), 0);
+            group.add(new THREE.Mesh(capGeo, buildMaterial(color)));
+          });
+        }
         return g;
       })();
 
@@ -1149,8 +1167,11 @@ function shapeUp(e) {
   const rx = Math.abs(pos.x - shapeOrigin.x);
   const ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
   if (rx > 2 || ry > 2) {
-    const pts = getShapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry);
-    strokes.push({ pts });
+    let pts = getShapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry);
+    // Remove duplicate last point (closed shapes repeat first point)
+    const p0 = pts[0], pN = pts[pts.length - 1];
+    if (Math.hypot(p0.x - pN.x, p0.y - pN.y) < 1) pts = pts.slice(0, -1);
+    strokes.push({ pts, closed: true });
     redrawAll();
     clearTimeout(autoGenTimer);
     autoGenTimer = setTimeout(build3D, 400);
