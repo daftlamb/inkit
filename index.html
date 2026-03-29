@@ -428,10 +428,10 @@ function redrawAll() {
 
 function getPos(e) {
   const rect = drawCanvas.getBoundingClientRect();
-  if (e.touches) {
-    return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-  }
-  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  let x, y;
+  if (e.touches) { x = e.touches[0].clientX - rect.left; y = e.touches[0].clientY - rect.top; }
+  else { x = e.clientX - rect.left; y = e.clientY - rect.top; }
+  return snapPos(x, y);
 }
 
 function startDraw(e) {
@@ -505,10 +505,42 @@ function endDraw(e) {
   }
 }
 
-drawCanvas.addEventListener('mousedown', e => { if (drawMode==='pen') penDown(e); else if (drawMode!=='shape') startDraw(e); });
-drawCanvas.addEventListener('mousemove', e => { if (drawMode==='pen') penMove(e); else if (drawMode!=='shape') moveDraw(e); });
-drawCanvas.addEventListener('mouseup',   e => { if (drawMode==='pen') penUp(e);   else if (drawMode!=='shape') endDraw(e); });
-drawCanvas.addEventListener('mouseleave', e => { if (drawMode!=='pen' && drawMode!=='shape') endDraw(e); });
+drawCanvas.addEventListener('mousedown', e => {
+  if (drawMode === 'shape') { shapeOrigin = snapPos(getPos(e).x, getPos(e).y); }
+  else if (drawMode === 'pen') penDown(e);
+  else startDraw(e);
+});
+drawCanvas.addEventListener('mousemove', e => {
+  if (drawMode === 'shape') {
+    if (!shapeOrigin) return;
+    const pos = snapPos(getPos(e).x, getPos(e).y);
+    const rx = Math.abs(pos.x - shapeOrigin.x), ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
+    redrawAll();
+    const preview = shapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry);
+    if (preview.length > 1) {
+      dc.save(); dc.strokeStyle = document.getElementById('stroke-color').value;
+      dc.lineWidth = 1.5; dc.setLineDash([4,4]); dc.beginPath();
+      dc.moveTo(preview[0].x, preview[0].y);
+      preview.forEach(p => dc.lineTo(p.x, p.y));
+      dc.stroke(); dc.restore();
+    }
+  } else if (drawMode === 'pen') penMove(e);
+  else moveDraw(e);
+});
+drawCanvas.addEventListener('mouseup', e => {
+  if (drawMode === 'shape') {
+    if (!shapeOrigin) return;
+    const pos = snapPos(getPos(e).x, getPos(e).y);
+    const rx = Math.abs(pos.x - shapeOrigin.x), ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
+    if (rx > 4 || ry > 4) {
+      strokes.push({ pts: shapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry), noTurbulence: true });
+      redrawAll(); clearTimeout(autoGenTimer); autoGenTimer = setTimeout(build3D, 400);
+    }
+    shapeOrigin = null;
+  } else if (drawMode === 'pen') penUp(e);
+  else endDraw(e);
+});
+drawCanvas.addEventListener('mouseleave', e => { if (drawMode !== 'pen' && drawMode !== 'shape') endDraw(e); });
 drawCanvas.addEventListener('dblclick',  e => { if (drawMode === 'pen') penCommit(); });
 drawCanvas.addEventListener('touchstart', e => { if (drawMode==='pen') penDown(e); else if (drawMode!=='shape') startDraw(e); }, { passive: false });
 drawCanvas.addEventListener('touchmove',  e => { if (drawMode==='pen') penMove(e); else if (drawMode!=='shape') moveDraw(e); }, { passive: false });
@@ -937,14 +969,13 @@ function buildExtrude() {
       const mesh = new THREE.Mesh(geo, mat);
       group.add(mesh);
 
-      // End caps: spheres at first and last point
-      const capR = (smoothPts[0].w || 4) * 0.5 / cw;
-      const p0 = smoothPts[0], pN = smoothPts[smoothPts.length - 1];
-      [p0, pN].forEach(p => {
-        const capGeo = new THREE.SphereGeometry(capR, 12, 8);
+      // End caps: spheres at first and last point of open strokes
+      const hw0 = (smoothPts[0].w || 4) * 0.5;
+      const hwN = (smoothPts[smoothPts.length - 1].w || 4) * 0.5;
+      [[smoothPts[0], hw0], [smoothPts[smoothPts.length - 1], hwN]].forEach(([p, hw]) => {
+        const capGeo = new THREE.SphereGeometry(hw / cw, 12, 8);
         capGeo.translate(mx(p), my(p), 0);
-        const capMesh = new THREE.Mesh(capGeo, buildMaterial(color));
-        group.add(capMesh);
+        group.add(new THREE.Mesh(capGeo, buildMaterial(color)));
       });
     }
   }
@@ -1131,39 +1162,6 @@ function shapePoints(cx, cy, rx, ry) {
   }
   return pts;
 }
-
-drawCanvas.addEventListener('mousedown', e => {
-  if (drawMode === 'shape') { const p = snapPos(getPos(e).x, getPos(e).y); shapeOrigin = p; }
-  else if (drawMode === 'pen') penDown(e); else startDraw(e);
-}, true);
-drawCanvas.addEventListener('mousemove', e => {
-  if (drawMode === 'shape') {
-    if (!shapeOrigin) return;
-    const pos = snapPos(getPos(e).x, getPos(e).y);
-    const rx = Math.abs(pos.x - shapeOrigin.x), ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
-    redrawAll();
-    const preview = shapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry);
-    if (preview.length > 1) {
-      dc.save(); dc.strokeStyle = document.getElementById('stroke-color').value;
-      dc.lineWidth = 1.5; dc.setLineDash([4,4]); dc.beginPath();
-      dc.moveTo(preview[0].x, preview[0].y);
-      preview.forEach(p => dc.lineTo(p.x, p.y));
-      dc.stroke(); dc.restore();
-    }
-  } else if (drawMode === 'pen') penMove(e); else moveDraw(e);
-}, true);
-drawCanvas.addEventListener('mouseup', e => {
-  if (drawMode === 'shape') {
-    if (!shapeOrigin) return;
-    const pos = snapPos(getPos(e).x, getPos(e).y);
-    const rx = Math.abs(pos.x - shapeOrigin.x), ry = e.shiftKey ? rx : Math.abs(pos.y - shapeOrigin.y);
-    if (rx > 4 || ry > 4) {
-      strokes.push({ pts: shapePoints(shapeOrigin.x, shapeOrigin.y, rx, ry), noTurbulence: true });
-      redrawAll(); clearTimeout(autoGenTimer); autoGenTimer = setTimeout(build3D, 400);
-    }
-    shapeOrigin = null;
-  } else if (drawMode === 'pen') penUp(e); else endDraw(e);
-}, true);
 
 // About modal
 document.getElementById('btn-about').addEventListener('click', () => {
