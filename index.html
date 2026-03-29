@@ -883,62 +883,73 @@ function buildExtrude() {
     for (const pts of allCopies) {
       if (pts.length < 2) continue;
 
-      // Smooth the stroke with CatmullRom curve, then resample
-      const curve = new THREE.CatmullRomCurve3(
-        pts.map(p => new THREE.Vector3(p.x, p.y, 0)), false, 'catmullrom', 0.5
-      );
-      const sampleCount = Math.max(pts.length * 6, 60);
-      const smoothPts = curve.getPoints(sampleCount).map((v, i) => {
-        const t = i / sampleCount;
-        const si = Math.min(Math.floor(t * (pts.length - 1)), pts.length - 2);
-        const frac = t * (pts.length - 1) - si;
-        const w = pts[si].w * (1 - frac) + pts[si + 1].w * frac;
-        return { x: v.x, y: v.y, w };
-      });
-
-      const left = [], right = [];
-      // Use tangent from curve for stable normals (avoids end-point jitter)
-      const tangents = curve.getTangents(sampleCount);
-      for (let i = 0; i < smoothPts.length; i++) {
-        const tan = tangents[i] || tangents[tangents.length - 1];
-        const nx = -tan.y, ny = tan.x;
-        const hw = (smoothPts[i].w || 4) * 0.5;
-        left.push({ x: smoothPts[i].x + nx * hw, y: smoothPts[i].y + ny * hw });
-        right.push({ x: smoothPts[i].x - nx * hw, y: smoothPts[i].y - ny * hw });
-      }
-
-      const shape = new THREE.Shape();
       const mx = p => (p.x - cw / 2) / cw;
       const my = p => -(p.y - ch / 2) / ch;
 
-      shape.moveTo(mx(left[0]), my(left[0]));
-      for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
-      for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
-      shape.closePath();
+      // Detect closed shape (first/last point within 5px)
+      const p0 = pts[0], pLast = pts[pts.length - 1];
+      const isClosed = Math.hypot(p0.x - pLast.x, p0.y - pLast.y) < 5;
 
-      const geo = new THREE.ExtrudeGeometry(shape, {
-        depth: depthVal,
-        bevelEnabled: bevelVal > 0,
-        bevelSize: bevelVal,
-        bevelThickness: bevelVal,
-        bevelSegments: 6,
-      });
-      geo.translate(0, 0, -depthVal / 2);
-      geo.computeVertexNormals();
+      const geo = (() => {
+        if (isClosed) {
+          // Closed shape: use points directly as Shape outline
+          const shape = new THREE.Shape();
+          shape.moveTo(mx(pts[0]), my(pts[0]));
+          for (let i = 1; i < pts.length - 1; i++) shape.lineTo(mx(pts[i]), my(pts[i]));
+          shape.closePath();
+          const g = new THREE.ExtrudeGeometry(shape, {
+            depth: depthVal, bevelEnabled: bevelVal > 0,
+            bevelSize: bevelVal, bevelThickness: bevelVal, bevelSegments: 6,
+          });
+          g.translate(0, 0, -depthVal / 2);
+          g.computeVertexNormals();
+          return g;
+        } else {
+          // Open stroke: CatmullRom + offset outline
+          const curve = new THREE.CatmullRomCurve3(
+            pts.map(p => new THREE.Vector3(p.x, p.y, 0)), false, 'catmullrom', 0.5
+          );
+          const sampleCount = Math.max(pts.length * 6, 60);
+          const smoothPts = curve.getPoints(sampleCount).map((v, i) => {
+            const t = i / sampleCount;
+            const si = Math.min(Math.floor(t * (pts.length - 1)), pts.length - 2);
+            const frac = t * (pts.length - 1) - si;
+            const w = pts[si].w * (1 - frac) + pts[si + 1].w * frac;
+            return { x: v.x, y: v.y, w };
+          });
+          const tangents = curve.getTangents(sampleCount);
+          const left = [], right = [];
+          for (let i = 0; i < smoothPts.length; i++) {
+            const tan = tangents[i] || tangents[tangents.length - 1];
+            const nx = -tan.y, ny = tan.x;
+            const hw = (smoothPts[i].w || 4) * 0.5;
+            left.push({ x: smoothPts[i].x + nx * hw, y: smoothPts[i].y + ny * hw });
+            right.push({ x: smoothPts[i].x - nx * hw, y: smoothPts[i].y - ny * hw });
+          }
+          const shape = new THREE.Shape();
+          shape.moveTo(mx(left[0]), my(left[0]));
+          for (let i = 1; i < left.length; i++) shape.lineTo(mx(left[i]), my(left[i]));
+          for (let i = right.length - 1; i >= 0; i--) shape.lineTo(mx(right[i]), my(right[i]));
+          shape.closePath();
+          const g = new THREE.ExtrudeGeometry(shape, {
+            depth: depthVal, bevelEnabled: bevelVal > 0,
+            bevelSize: bevelVal, bevelThickness: bevelVal, bevelSegments: 6,
+          });
+          g.translate(0, 0, -depthVal / 2);
+          g.computeVertexNormals();
 
-      const mat = buildMaterial(color);
-      const mesh = new THREE.Mesh(geo, mat);
-      group.add(mesh);
+          // End caps for open strokes
+          const capR = (smoothPts[0].w || 4) * 0.5 / cw;
+          [smoothPts[0], smoothPts[smoothPts.length - 1]].forEach(p => {
+            const capGeo = new THREE.SphereGeometry(capR, 12, 8);
+            capGeo.translate(mx(p), my(p), 0);
+            group.add(new THREE.Mesh(capGeo, buildMaterial(color)));
+          });
+          return g;
+        }
+      })();
 
-      // End caps: spheres at first and last point
-      const capR = (smoothPts[0].w || 4) * 0.5 / cw;
-      const p0 = smoothPts[0], pN = smoothPts[smoothPts.length - 1];
-      [p0, pN].forEach(p => {
-        const capGeo = new THREE.SphereGeometry(capR, 12, 8);
-        capGeo.translate(mx(p), my(p), 0);
-        const capMesh = new THREE.Mesh(capGeo, buildMaterial(color));
-        group.add(capMesh);
-      });
+      group.add(new THREE.Mesh(geo, buildMaterial(color)));
     }
   }
 
