@@ -892,29 +892,12 @@ function buildExtrude() {
 
       const geo = (() => {
         if (isClosed) {
-          // Closed shape: offset outline (outer + inner) for stroke-like thickness
-          const corePts = pts.slice(0, -1); // remove duplicate last point
-          const hw = (corePts[0].w || 4) * 0.5;
-          const outer = [], inner = [];
-          for (let i = 0; i < corePts.length; i++) {
-            const prev = corePts[(i - 1 + corePts.length) % corePts.length];
-            const next = corePts[(i + 1) % corePts.length];
-            const dx = next.x - prev.x, dy = next.y - prev.y;
-            const len = Math.hypot(dx, dy) || 1;
-            const nx = -dy / len, ny = dx / len;
-            outer.push({ x: corePts[i].x + nx * hw, y: corePts[i].y + ny * hw });
-            inner.push({ x: corePts[i].x - nx * hw, y: corePts[i].y - ny * hw });
-          }
+          // Closed shape: solid extrude
+          const corePts = pts.slice(0, -1);
           const shape = new THREE.Shape();
-          shape.moveTo(mx(outer[0]), my(outer[0]));
-          for (let i = 1; i < outer.length; i++) shape.lineTo(mx(outer[i]), my(outer[i]));
+          shape.moveTo(mx(corePts[0]), my(corePts[0]));
+          for (let i = 1; i < corePts.length; i++) shape.lineTo(mx(corePts[i]), my(corePts[i]));
           shape.closePath();
-          // Hole (inner) — subtract to make it a ring
-          const hole = new THREE.Path();
-          hole.moveTo(mx(inner[0]), my(inner[0]));
-          for (let i = 1; i < inner.length; i++) hole.lineTo(mx(inner[i]), my(inner[i]));
-          hole.closePath();
-          shape.holes.push(hole);
           const g = new THREE.ExtrudeGeometry(shape, {
             depth: depthVal, bevelEnabled: bevelVal > 0,
             bevelSize: bevelVal, bevelThickness: bevelVal, bevelSegments: 6,
