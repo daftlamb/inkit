@@ -330,13 +330,20 @@ function getSymmetryPoints(pts) {
         const dx = p.x - cx, dy = p.y - cy;
         return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos, w: p.w };
       });
-      // Skip if centroid of this copy matches an existing one (center-aligned shapes)
+      // Skip if this copy is geometrically identical to an existing one
       const centX = copy.reduce((s,p) => s+p.x, 0) / copy.length;
       const centY = copy.reduce((s,p) => s+p.y, 0) / copy.length;
+      const snapGrid = drawCanvas.width / 24;
       const isDup = copies.some(existing => {
         const ex = existing.reduce((s,p) => s+p.x, 0) / existing.length;
         const ey = existing.reduce((s,p) => s+p.y, 0) / existing.length;
-        return Math.hypot(ex - centX, ey - centY) < 2;
+        if (Math.hypot(ex - centX, ey - centY) >= snapGrid * 0.6) return false;
+        // Same centroid: check if all points are within threshold (identical shape)
+        const maxDist = existing.reduce((m, p, i) => {
+          const cp = copy[i % copy.length];
+          return Math.max(m, Math.hypot(p.x - cp.x, p.y - cp.y));
+        }, 0);
+        return maxDist < snapGrid * 0.6;
       });
       if (!isDup) copies.push(copy);
     }
