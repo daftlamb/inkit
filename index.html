@@ -140,9 +140,6 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   <button class="act-btn" id="btn-export-glb" style="border-color:#a0e0a0;color:#a0e0a0;">GLB</button>
   <button class="act-btn" id="btn-export-stl" style="border-color:#a0e0a0;color:#a0e0a0;">STL</button>
   <button class="act-btn" id="btn-dither" style="border-color:#88aaff;color:#88aaff;">Dither</button>
-  <input type="color" id="dither-fg" value="#1a1a1a" title="Dither foreground" style="width:20px;height:20px;border:none;padding:0;cursor:pointer;background:none;"/>
-  <input type="color" id="dither-bg" value="#f5f5f0" title="Dither background" style="width:20px;height:20px;border:none;padding:0;cursor:pointer;background:none;"/>
-  <button class="act-btn" id="btn-export-dither" style="border-color:#88aaff;color:#88aaff;display:none;">Save PNG</button>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="ref-img-toggle"/> Ref Image
     <input type="file" id="ref-img-input" accept="image/*" style="display:none"/>
@@ -220,6 +217,13 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   <div id="right" style="position:relative;">
     <canvas id="three-canvas"></canvas>
     <canvas id="dither-canvas" style="position:absolute;top:0;left:0;pointer-events:none;display:none;"></canvas>
+    <div id="dither-bar" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:var(--surface,#1a1a1a);border:1px solid var(--border,#333);border-radius:6px;padding:6px 10px;display:none;align-items:center;gap:8px;font-size:11px;color:var(--fg,#ccc);font-family:'Outfit',sans-serif;z-index:10;">
+      <input type="color" id="dither-fg" value="#1a1a1a" title="Foreground" style="width:18px;height:18px;border:none;padding:0;cursor:pointer;border-radius:2px;"/>
+      <input type="color" id="dither-bg" value="#f5f5f0" title="Background" style="width:18px;height:18px;border:none;padding:0;cursor:pointer;border-radius:2px;"/>
+      <span>Size</span>
+      <input type="range" id="dither-size" min="1" max="8" value="1" style="width:60px;"/>
+      <button class="act-btn" id="btn-export-dither" style="border-color:#88aaff;color:#88aaff;padding:2px 8px;">Save PNG</button>
+    </div>
     <div id="mat-panel">
       <button class="mat-btn active" data-mat="chrome">Chrome</button>
       <button class="mat-btn" data-mat="matte">Matte</button>
@@ -1556,10 +1560,10 @@ function applyDither() {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
       const r = src[idx], g = src[idx+1], b = src[idx+2];
-      // Luminance
       const lum = 0.299*r + 0.587*g + 0.114*b;
-      // Bayer threshold (0–255)
-      const threshold = (BAYER4[(y%4)*4 + (x%4)] / 16) * 255;
+      const sz = parseInt(document.getElementById('dither-size').value);
+      const bx = Math.floor(x / sz) % 4, by = Math.floor(y / sz) % 4;
+      const threshold = (BAYER4[by*4 + bx] / 16) * 255;
       const on = lum < threshold;
       dst[idx]   = on ? fgR : bgR;
       dst[idx+1] = on ? fgG : bgG;
@@ -1574,16 +1578,23 @@ function applyDither() {
 
 document.getElementById('btn-dither').addEventListener('click', () => {
   ditherActive = !ditherActive;
+  const bar = document.getElementById('dither-bar');
   if (ditherActive) {
     applyDither();
+    bar.style.display = 'flex';
     document.getElementById('btn-dither').style.borderColor = '#ff88aa';
     document.getElementById('btn-dither').style.color = '#ff88aa';
   } else {
     ditherCanvas.style.display = 'none';
-    document.getElementById('btn-export-dither').style.display = 'none';
+    bar.style.display = 'none';
     document.getElementById('btn-dither').style.borderColor = '#88aaff';
     document.getElementById('btn-dither').style.color = '#88aaff';
   }
+});
+
+// Re-apply dither when controls change
+['dither-fg','dither-bg','dither-size'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => { if (ditherActive) applyDither(); });
 });
 
 document.getElementById('btn-export-dither').addEventListener('click', () => {
