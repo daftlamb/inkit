@@ -595,23 +595,33 @@ function endErase(e) {
 function doScissor(e) {
   const pos = getPos(e);
   let bestStroke = -1, bestPt = -1, bestDist = Infinity;
-  // Find closest point across all strokes
   strokes.forEach((s, si) => {
     s.pts.forEach((p, pi) => {
       const d = Math.hypot(p.x - pos.x, p.y - pos.y);
       if (d < bestDist) { bestDist = d; bestStroke = si; bestPt = pi; }
     });
   });
-  if (bestStroke < 0 || bestDist > 30) return; // nothing close enough
+  if (bestStroke < 0 || bestDist > 30) return;
   const s = strokes[bestStroke];
   const i = bestPt;
-  const segA = s.pts.slice(0, i + 1);
-  const segB = s.pts.slice(i);
-  const newStrokes = [...strokes];
-  newStrokes.splice(bestStroke, 1);
-  if (segA.length > 1) newStrokes.splice(bestStroke, 0, { ...s, pts: segA });
-  if (segB.length > 1) newStrokes.splice(bestStroke + (segA.length > 1 ? 1 : 0), 0, { ...s, pts: segB });
-  strokes = newStrokes;
+
+  // For closed shapes (noTurbulence): rotate array so cut point is at seam,
+  // then output as single open stroke — no gap at old start/end
+  if (s.noTurbulence) {
+    const pts = s.pts;
+    const rotated = [...pts.slice(i), ...pts.slice(0, i + 1)];
+    const newStrokes = [...strokes];
+    newStrokes.splice(bestStroke, 1, { ...s, pts: rotated, noTurbulence: false });
+    strokes = newStrokes;
+  } else {
+    const segA = s.pts.slice(0, i + 1);
+    const segB = s.pts.slice(i);
+    const newStrokes = [...strokes];
+    newStrokes.splice(bestStroke, 1);
+    if (segA.length > 1) newStrokes.splice(bestStroke, 0, { ...s, pts: segA });
+    if (segB.length > 1) newStrokes.splice(bestStroke + (segA.length > 1 ? 1 : 0), 0, { ...s, pts: segB });
+    strokes = newStrokes;
+  }
   redrawAll();
   clearTimeout(autoGenTimer);
   autoGenTimer = setTimeout(build3D, 400);
