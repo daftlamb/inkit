@@ -75,7 +75,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Outfit',sans-serif;height
 input[type=range]{width:80px;accent-color:var(--accent);cursor:pointer;}
 input[type=color]{width:26px;height:20px;border:1px solid var(--border);background:none;cursor:pointer;padding:0;border-radius:2px;}
 #right{width:50%;position:relative;}
-#three-canvas{display:block;width:100%;height:100%;}
+#three-canvas{display:block;width:100%;height:100%;touch-action:none;}
 #mat-panel{
   position:absolute;top:12px;right:12px;
   display:flex;gap:6px;padding:6px;align-items:center;
@@ -259,7 +259,7 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
       </div>
     </div>
   </div>
-  <div id="right" style="position:relative;">
+  <div id="right">
     <canvas id="three-canvas"></canvas>
     <canvas id="dither-canvas" style="position:absolute;top:0;left:0;pointer-events:none;display:none;"></canvas>
     <div id="dither-bar" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:var(--surface,#1a1a1a);border:1px solid var(--border,#333);border-radius:6px;padding:6px 10px;display:none;align-items:center;gap:8px;font-size:11px;color:var(--fg,#ccc);font-family:'Outfit',sans-serif;z-index:10;">
