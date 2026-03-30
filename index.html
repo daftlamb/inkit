@@ -849,7 +849,9 @@ const threeCanvas = document.getElementById('three-canvas');
 const rightEl = document.getElementById('right');
 
 const renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const _dprMQ = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+_dprMQ.addEventListener('change', () => { renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); resizeThree(); });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 
