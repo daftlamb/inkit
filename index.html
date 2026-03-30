@@ -80,7 +80,7 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   position:absolute;top:12px;right:12px;
   display:flex;gap:6px;padding:6px;align-items:center;
   background:rgba(250,250,250,0.9);border:1px solid var(--border);border-radius:3px;
-  backdrop-filter:blur(4px);
+  backdrop-filter:blur(4px);pointer-events:auto;z-index:10;
 }
 [data-theme="dark"] #mat-panel{background:rgba(26,26,26,0.88);}
 #tool-bar{
@@ -90,10 +90,10 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   border-radius:6px;padding:6px 4px;z-index:20;
 }
 #light-panel{
-  position:absolute;top:12px;left:12px;
+  position:absolute;bottom:12px;right:12px;
   display:flex;flex-direction:column;gap:5px;padding:8px 10px;
   background:rgba(250,250,250,0.9);border:1px solid var(--border);border-radius:3px;
-  backdrop-filter:blur(4px);min-width:140px;
+  backdrop-filter:blur(4px);min-width:140px;z-index:10;pointer-events:auto;
 }
 [data-theme="dark"] #light-panel{background:rgba(26,26,26,0.88);}
 #hint{
@@ -1271,9 +1271,7 @@ function buildBlob(forceResolution) {
     const sphere = new THREE.Sphere();
     bbox.getBoundingSphere(sphere);
     controls.target.copy(sphere.center);
-    // Position camera relative to model center
-    const dist = Math.max(sphere.radius * 3, 2);
-    camera.position.copy(sphere.center).add(new THREE.Vector3(0, 0, dist));
+    camera.position.set(0, 0, 3.5);
     camera.up.set(0, 1, 0);
     controls.update();
   }
