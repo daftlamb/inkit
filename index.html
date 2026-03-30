@@ -159,10 +159,10 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
     <input type="radio" name="draw-mode" id="mode-pen"/> Pen
   </label>
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
-    <input type="radio" name="draw-mode" id="mode-shape"/> Shape
+    <input type="radio" name="draw-mode" id="mode-eraser"/> Eraser
   </label>
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
-    <input type="radio" name="draw-mode" id="mode-eraser"/> Eraser
+    <input type="radio" name="draw-mode" id="mode-shape"/> Shape
   </label>
   <select id="shape-type" style="font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:2px 4px;cursor:pointer;">
     <option value="circle">Circle</option>
@@ -552,14 +552,25 @@ function doErase(e) {
   if (!isErasing) return;
   const pos = getPos(e);
   const bs = parseFloat(document.getElementById('brush-size').value) * 2;
-  // Remove points from strokes within eraser radius
+  // Split strokes at erased region — points inside radius removed, stroke splits into segments
+  const next = [];
   let changed = false;
-  strokes = strokes.map(s => {
-    const pts = s.pts.filter(p => Math.hypot(p.x - pos.x, p.y - pos.y) > bs);
-    if (pts.length !== s.pts.length) changed = true;
-    return { ...s, pts };
-  }).filter(s => s.pts.length > 1);
+  for (const s of strokes) {
+    let seg = [];
+    for (const p of s.pts) {
+      if (Math.hypot(p.x - pos.x, p.y - pos.y) > bs) {
+        seg.push(p);
+      } else {
+        changed = true;
+        if (seg.length > 1) next.push({ ...s, pts: seg });
+        seg = [];
+      }
+    }
+    if (seg.length > 1) next.push({ ...s, pts: seg });
+    else if (seg.length === s.pts.length) next.push(s); // untouched
+  }
   if (changed) {
+    strokes = next;
     redrawAll();
     // Draw eraser circle cursor
     dc.save();
