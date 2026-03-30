@@ -162,6 +162,9 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
     <input type="radio" name="draw-mode" id="mode-eraser"/> Eraser
   </label>
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="draw-mode" id="mode-scissor"/> Scissor
+  </label>
+  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
     <input type="radio" name="draw-mode" id="mode-shape"/> Shape
   </label>
   <select id="shape-type" style="font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:2px 4px;cursor:pointer;">
@@ -588,12 +591,39 @@ function endErase(e) {
   autoGenTimer = setTimeout(build3D, 600);
 }
 
+// ─── SCISSOR ─────────────────────────────────────────────────────────────────
+function doScissor(e) {
+  const pos = getPos(e);
+  let bestStroke = -1, bestPt = -1, bestDist = Infinity;
+  // Find closest point across all strokes
+  strokes.forEach((s, si) => {
+    s.pts.forEach((p, pi) => {
+      const d = Math.hypot(p.x - pos.x, p.y - pos.y);
+      if (d < bestDist) { bestDist = d; bestStroke = si; bestPt = pi; }
+    });
+  });
+  if (bestStroke < 0 || bestDist > 30) return; // nothing close enough
+  const s = strokes[bestStroke];
+  const i = bestPt;
+  const segA = s.pts.slice(0, i + 1);
+  const segB = s.pts.slice(i);
+  const newStrokes = [...strokes];
+  newStrokes.splice(bestStroke, 1);
+  if (segA.length > 1) newStrokes.splice(bestStroke, 0, { ...s, pts: segA });
+  if (segB.length > 1) newStrokes.splice(bestStroke + (segA.length > 1 ? 1 : 0), 0, { ...s, pts: segB });
+  strokes = newStrokes;
+  redrawAll();
+  clearTimeout(autoGenTimer);
+  autoGenTimer = setTimeout(build3D, 400);
+}
+
 drawCanvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') return; // handled by touch events
   drawCanvas.setPointerCapture(e.pointerId);
   if (drawMode === 'shape') { shapeOrigin = getPos(e); }
   else if (drawMode === 'pen') penDown(e);
   else if (drawMode === 'eraser') startErase(e);
+  else if (drawMode === 'scissor') { doScissor(e); }
   else startDraw(e);
 });
 drawCanvas.addEventListener('pointermove', e => {
@@ -1278,6 +1308,7 @@ document.getElementById('mode-brush').addEventListener('change', () => { drawMod
 document.getElementById('mode-pen').addEventListener('change', () => { drawMode = 'pen'; });
 document.getElementById('mode-shape').addEventListener('change', () => { drawMode = 'shape'; penAnchors = []; penPreview = null; redrawAll(); });
 document.getElementById('mode-eraser').addEventListener('change', () => { drawMode = 'eraser'; penAnchors = []; penPreview = null; redrawAll(); });
+document.getElementById('mode-scissor').addEventListener('change', () => { drawMode = 'scissor'; penAnchors = []; penPreview = null; redrawAll(); });
 
 // ─── SNAP ────────────────────────────────────────────────────────────────────
 function snapPos(x, y) {
