@@ -274,6 +274,7 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
       <button class="mat-btn" data-mat="matte">Matte</button>
       <button class="mat-btn" data-mat="gold">Gold</button>
       <button class="mat-btn" data-mat="liquid" style="border-color:#c0e0ff;color:#c0e0ff;">Liquid</button>
+      <button class="mat-btn" data-mat="steel" style="border-color:#d0c8c0;color:#d0c8c0;">Steel</button>
       <button class="mat-btn" data-mat="custom">Custom</button>
       <div style="width:1px;height:16px;background:#333;margin:0 2px;"></div>
       <button class="mat-btn" id="btn-reset-cam" title="Reset to front view">⊙</button>
@@ -1037,6 +1038,113 @@ function build3D(forceResolution) {
 }
 
 // ─── EXTRUDE MODE ─────────────────────────────────────────────────────────────
+
+// Steel ShaderMaterial — Swirl noise + fresnel + specular highlight
+function makeSteelMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime:     { value: 0 },
+      uEnvMap:   { value: null },
+      uBgRT:     { value: null }, // render target texture
+      uRes:      { value: new THREE.Vector2(1,1) },
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vViewPos;
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+        vViewPos  = mvPos.xyz;
+        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+        vNormal   = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * mvPos;
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      varying vec3 vNormal;
+      varying vec3 vViewPos;
+      varying vec3 vWorldPos;
+      uniform float uTime;
+      uniform sampler2D uBgRT;
+      uniform vec2 uRes;
+
+      // Simple FBM for swirl
+      vec2 hash2(vec2 p) {
+        p = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)));
+        return -1.0 + 2.0*fract(sin(p)*43758.5453123);
+      }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        vec2 u = f*f*(3.0-2.0*f);
+        return mix(mix(dot(hash2(i),f), dot(hash2(i+vec2(1,0)),f-vec2(1,0)),u.x),
+                   mix(dot(hash2(i+vec2(0,1)),f-vec2(0,1)), dot(hash2(i+vec2(1,1)),f-vec2(1,1)),u.x),u.y);
+      }
+      float fbm(vec2 p) {
+        float v=0.0, a=0.5;
+        for(int i=0;i<5;i++){ v+=a*noise(p); p=mat2(1.6,1.2,-1.2,1.6)*p; a*=0.5; }
+        return v;
+      }
+
+      vec3 srgbToLinear(vec3 c){ return pow(c, vec3(2.2)); }
+
+      void main() {
+        vec3 N = normalize(vNormal);
+        vec3 V = normalize(-vViewPos);
+        float NdotV = max(dot(N,V), 0.0);
+
+        // Fresnel
+        float fresnel = pow(1.0 - NdotV, 3.0);
+
+        // Screen-space UV for background sampling
+        vec2 screenUV = (gl_FragCoord.xy) / uRes;
+
+        // Refraction offset using normal
+        vec2 refUV = screenUV + N.xy * 0.06 * (1.0 - fresnel);
+
+        // Chromatic aberration
+        float abr = 0.025;
+        float bgR = texture2D(uBgRT, refUV + vec2(abr,0)).r;
+        float bgG = texture2D(uBgRT, refUV).g;
+        float bgB = texture2D(uBgRT, refUV - vec2(abr,0)).b;
+        vec3 bg = vec3(bgR, bgG, bgB);
+
+        // Swirl texture (internal)
+        vec2 swirlUV = vWorldPos.xy * 1.5 + uTime * 0.2;
+        swirlUV += fbm(swirlUV * 0.8) * 1.5;
+        float s = fbm(swirlUV);
+        // HSL blend between dark and white
+        vec3 dark = srgbToLinear(vec3(0.079, 0.079, 0.071));
+        vec3 lite = srgbToLinear(vec3(1.0,1.0,1.0));
+        float t = smoothstep(-0.4, 0.4, s);
+        vec3 swirl = mix(dark, lite, t);
+
+        // Blend bg (refracted) with swirl
+        vec3 interior = mix(swirl, bg, 0.55);
+
+        // Highlight from 300deg light
+        float la = 300.0 * 3.14159 / 180.0;
+        vec3 L = normalize(vec3(cos(la), sin(la), 1.0));
+        float spec = pow(max(dot(reflect(-L, N), V), 0.0), 64.0);
+        vec3 highlight = vec3(1.0) * spec * 0.6;
+
+        // Fresnel edge glow
+        vec3 fresnelColor = srgbToLinear(vec3(1.0,1.0,1.0)) * fresnel * 0.25;
+
+        vec3 color = interior + highlight + fresnelColor;
+        // gamma
+        color = pow(clamp(color, 0.0, 1.0), vec3(1.0/2.2));
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+    side: THREE.DoubleSide,
+  });
+}
+
+// Render target for steel material background capture
+let _steelRT = null;
+let _steelScene = null;
+
 function buildMaterial(color) {
   const metalness = parseFloat(document.getElementById('mat-metalness').value) / 100;
   const roughness = parseFloat(document.getElementById('mat-roughness').value) / 100;
@@ -1060,6 +1168,14 @@ function buildMaterial(color) {
 
   return new THREE.MeshPhysicalMaterial({ color, ...p });
 }
+
+// Dispatch to steel or standard
+const _buildStdMaterial = buildMaterial;
+function buildMaterial(color) {
+  if (currentMat === 'steel') return makeSteelMaterial();
+  return _buildStdMaterial(color);
+}
+
 function buildExtrude() {
   document.getElementById('hint').style.display = 'none';
   if (sculpture) {
@@ -1302,9 +1418,21 @@ function buildBlob(forceResolution) {
 }
 
 // ─── ANIMATE ─────────────────────────────────────────────────────────────────
+let _animT = 0;
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+  _animT += 0.01;
+  // Update steel material uniforms
+  if (currentMat === 'steel' && sculpture) {
+    const w = threeCanvas.width, h = threeCanvas.height;
+    sculpture.traverse(c => {
+      if (c.material && c.material.uniforms) {
+        c.material.uniforms.uTime.value = _animT;
+        c.material.uniforms.uRes.value.set(w, h);
+      }
+    });
+  }
   if (bloomPass.enabled) {
     composer.render();
   } else {
@@ -1520,7 +1648,6 @@ document.querySelectorAll('.mat-btn').forEach(btn => {
     document.querySelectorAll('.mat-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentMat = btn.dataset.mat;
-    // Chrome: auto bloom on + high exposure; Matte: bloom off
     if (currentMat === 'chrome') {
       bloomPass.enabled = true;
       document.getElementById('bloom-toggle').checked = true;
@@ -1529,12 +1656,16 @@ document.querySelectorAll('.mat-btn').forEach(btn => {
       bloomPass.enabled = true;
       document.getElementById('bloom-toggle').checked = false;
       renderer.toneMappingExposure = 1.0;
+    } else if (currentMat === 'steel') {
+      bloomPass.enabled = false;
+      document.getElementById('bloom-toggle').checked = false;
+      renderer.toneMappingExposure = 1.0;
     } else {
       bloomPass.enabled = true;
       document.getElementById('bloom-toggle').checked = true;
       renderer.toneMappingExposure = 1.2;
     }
-    if (sculpture) build3D(); // rebuild with new material
+    if (sculpture) build3D();
   });
 });
 
