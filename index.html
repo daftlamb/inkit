@@ -139,6 +139,10 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   <button class="act-btn" id="btn-export-4x" style="border-color:#aaa;color:#aaa;">4×</button>
   <button class="act-btn" id="btn-export-glb" style="border-color:#a0e0a0;color:#a0e0a0;">GLB</button>
   <button class="act-btn" id="btn-export-stl" style="border-color:#a0e0a0;color:#a0e0a0;">STL</button>
+  <button class="act-btn" id="btn-dither" style="border-color:#88aaff;color:#88aaff;">Dither</button>
+  <input type="color" id="dither-fg" value="#1a1a1a" title="Dither foreground" style="width:20px;height:20px;border:none;padding:0;cursor:pointer;background:none;"/>
+  <input type="color" id="dither-bg" value="#f5f5f0" title="Dither background" style="width:20px;height:20px;border:none;padding:0;cursor:pointer;background:none;"/>
+  <button class="act-btn" id="btn-export-dither" style="border-color:#88aaff;color:#88aaff;display:none;">Save PNG</button>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="ref-img-toggle"/> Ref Image
     <input type="file" id="ref-img-input" accept="image/*" style="display:none"/>
@@ -213,8 +217,9 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
       </div>
     </div>
   </div>
-  <div id="right">
+  <div id="right" style="position:relative;">
     <canvas id="three-canvas"></canvas>
+    <canvas id="dither-canvas" style="position:absolute;top:0;left:0;pointer-events:none;display:none;"></canvas>
     <div id="mat-panel">
       <button class="mat-btn active" data-mat="chrome">Chrome</button>
       <button class="mat-btn" data-mat="matte">Matte</button>
@@ -1510,6 +1515,85 @@ document.getElementById('btn-export-stl').addEventListener('click', async () => 
   a.download = 'inkit.stl';
   a.click();
   URL.revokeObjectURL(a.href);
+});
+
+// ─── DITHER ──────────────────────────────────────────────────────────────────
+const BAYER4 = [
+   0,  8,  2, 10,
+  12,  4, 14,  6,
+   3, 11,  1,  9,
+  15,  7, 13,  5
+];
+
+const ditherCanvas = document.getElementById('dither-canvas');
+const ditherCtx = ditherCanvas.getContext('2d');
+let ditherActive = false;
+
+function applyDither() {
+  const w = threeCanvas.width, h = threeCanvas.height;
+  ditherCanvas.width = w;
+  ditherCanvas.height = h;
+  ditherCanvas.style.width = threeCanvas.style.width || threeCanvas.offsetWidth + 'px';
+  ditherCanvas.style.height = threeCanvas.style.height || threeCanvas.offsetHeight + 'px';
+
+  // Read pixels from three.js canvas
+  renderer.render(scene, camera);
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = w; tempCanvas.height = h;
+  tempCanvas.getContext('2d').drawImage(threeCanvas, 0, 0);
+  const imgData = tempCanvas.getContext('2d').getImageData(0, 0, w, h);
+  const src = imgData.data;
+
+  const fg = document.getElementById('dither-fg').value;
+  const bg = document.getElementById('dither-bg').value;
+  const fgR = parseInt(fg.slice(1,3),16), fgG = parseInt(fg.slice(3,5),16), fgB = parseInt(fg.slice(5,7),16);
+  const bgR = parseInt(bg.slice(1,3),16), bgG = parseInt(bg.slice(3,5),16), bgB = parseInt(bg.slice(5,7),16);
+
+  const out = ditherCtx.createImageData(w, h);
+  const dst = out.data;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      const r = src[idx], g = src[idx+1], b = src[idx+2];
+      // Luminance
+      const lum = 0.299*r + 0.587*g + 0.114*b;
+      // Bayer threshold (0–255)
+      const threshold = (BAYER4[(y%4)*4 + (x%4)] / 16) * 255;
+      const on = lum < threshold;
+      dst[idx]   = on ? fgR : bgR;
+      dst[idx+1] = on ? fgG : bgG;
+      dst[idx+2] = on ? fgB : bgB;
+      dst[idx+3] = 255;
+    }
+  }
+  ditherCtx.putImageData(out, 0, 0);
+  ditherCanvas.style.display = 'block';
+  document.getElementById('btn-export-dither').style.display = '';
+}
+
+document.getElementById('btn-dither').addEventListener('click', () => {
+  ditherActive = !ditherActive;
+  if (ditherActive) {
+    applyDither();
+    document.getElementById('btn-dither').style.borderColor = '#ff88aa';
+    document.getElementById('btn-dither').style.color = '#ff88aa';
+  } else {
+    ditherCanvas.style.display = 'none';
+    document.getElementById('btn-export-dither').style.display = 'none';
+    document.getElementById('btn-dither').style.borderColor = '#88aaff';
+    document.getElementById('btn-dither').style.color = '#88aaff';
+  }
+});
+
+document.getElementById('btn-export-dither').addEventListener('click', () => {
+  ditherCanvas.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'inkit-dither.png';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
 });
 
 // Reference image (background overlay on draw canvas)
