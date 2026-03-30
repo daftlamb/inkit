@@ -26,6 +26,11 @@ body{background:var(--bg);color:var(--fg);font-family:'Outfit',sans-serif;height
 #topbar h1{font-size:14px;color:var(--accent);letter-spacing:2px;margin-right:6px;font-weight:500;}
 .btn-icon{background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;height:30px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:14px;padding:0 10px;transition:all .15s;}
 .btn-icon:hover{border-color:var(--accent);color:var(--accent);}
+.tool-icon{background:none;border:1px solid transparent;color:var(--muted);border-radius:5px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0;position:relative;}
+.tool-icon svg{width:18px;height:18px;}
+.tool-icon:hover{border-color:var(--border);color:var(--fg);}
+.tool-icon.active{background:var(--surface);border-color:var(--accent);color:var(--accent);}
+.tool-icon[title]:hover::after{content:attr(title);position:absolute;left:calc(100% + 6px);top:50%;transform:translateY(-50%);background:var(--surface);border:1px solid var(--border);color:var(--fg);font-size:10px;padding:2px 6px;border-radius:3px;white-space:nowrap;pointer-events:none;font-family:'Outfit',sans-serif;z-index:99;}
 .sym-btn{
   background:transparent;border:1px solid var(--border);color:var(--muted);
   padding:4px 10px;font-size:11px;cursor:pointer;border-radius:2px;font-family:'Outfit',sans-serif;
@@ -152,28 +157,40 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
     <input type="radio" name="render-mode" id="rmode-extrude"/> Extrude
   </label>
   <div class="sep"></div>
-  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
-    <input type="radio" name="draw-mode" id="mode-brush" checked/> Brush
-  </label>
-  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
-    <input type="radio" name="draw-mode" id="mode-pen"/> Pen
-  </label>
-  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
-    <input type="radio" name="draw-mode" id="mode-eraser"/> Eraser
-  </label>
-  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
-    <input type="radio" name="draw-mode" id="mode-scissor"/> Scissor
-  </label>
-  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
-    <input type="radio" name="draw-mode" id="mode-shape"/> Shape
-  </label>
-  <select id="shape-type" style="font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:2px 4px;cursor:pointer;">
-    <option value="circle">Circle</option>
-    <option value="rect">Rect</option>
-    <option value="poly">Poly</option>
-    <option value="star">Star</option>
-  </select>
-  <input type="number" id="shape-sides" value="6" min="3" max="24" title="Sides" style="width:36px;font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:1px 4px;"/>
+  <!-- Hidden radios for mode state -->
+  <input type="radio" name="draw-mode" id="mode-brush" checked style="display:none"/>
+  <input type="radio" name="draw-mode" id="mode-pen" style="display:none"/>
+  <input type="radio" name="draw-mode" id="mode-eraser" style="display:none"/>
+  <input type="radio" name="draw-mode" id="mode-scissor" style="display:none"/>
+  <input type="radio" name="draw-mode" id="mode-shape" style="display:none"/>
+  <!-- Icon toolbar -->
+  <div id="tool-bar" style="display:flex;flex-direction:column;gap:2px;align-items:center;">
+    <button class="tool-icon active" data-mode="brush" title="Brush">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16c1-1 2-3 4-4l6-6a1.5 1.5 0 00-2-2L6 10c-1 2-3 3-4 4 0 1 1 2 2 2z"/><circle cx="15" cy="5" r="1" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <button class="tool-icon" data-mode="pen" title="Pen">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 3l4 4-9 9H4v-4l9-9z"/><path d="M11 5l4 4"/></svg>
+    </button>
+    <button class="tool-icon" data-mode="eraser" title="Eraser">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 17h14"/><path d="M5 13L11 4l5 5-6 9z"/></svg>
+    </button>
+    <button class="tool-icon" data-mode="scissor" title="Scissor">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="14" r="2"/><line x1="8" y1="7" x2="17" y2="3"/><line x1="8" y1="13" x2="17" y2="17"/><line x1="10" y1="10" x2="17" y2="10" stroke-dasharray="2 2"/></svg>
+    </button>
+    <button class="tool-icon" data-mode="shape" title="Shape">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="10,3 17,7 17,13 10,17 3,13 3,7"/></svg>
+    </button>
+  </div>
+  <!-- Shape sub-options, shown only in shape mode -->
+  <div id="shape-opts" style="display:none;flex-direction:column;gap:4px;align-items:stretch;margin-top:4px;">
+    <select id="shape-type" style="font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:2px 4px;cursor:pointer;">
+      <option value="circle">Circle</option>
+      <option value="rect">Rect</option>
+      <option value="poly">Poly</option>
+      <option value="star">Star</option>
+    </select>
+    <input type="number" id="shape-sides" value="6" min="3" max="24" title="Sides" style="width:100%;font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:1px 4px;"/>
+  </div>
   <div class="sep"></div>
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="bloom-toggle"/> Bloom
@@ -1314,11 +1331,19 @@ document.getElementById('btn-undo').addEventListener('click', () => {
   if (strokes.length > 0) { strokes.pop(); redrawAll(); if (sculpture) build3D(); }
 });
 
-document.getElementById('mode-brush').addEventListener('change', () => { drawMode = 'brush'; penAnchors = []; penPreview = null; redrawAll(); });
-document.getElementById('mode-pen').addEventListener('change', () => { drawMode = 'pen'; });
-document.getElementById('mode-shape').addEventListener('change', () => { drawMode = 'shape'; penAnchors = []; penPreview = null; redrawAll(); });
-document.getElementById('mode-eraser').addEventListener('change', () => { drawMode = 'eraser'; penAnchors = []; penPreview = null; redrawAll(); });
-document.getElementById('mode-scissor').addEventListener('change', () => { drawMode = 'scissor'; penAnchors = []; penPreview = null; redrawAll(); });
+// Tool icon bar
+document.querySelectorAll('.tool-icon').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode;
+    drawMode = mode;
+    document.getElementById(`mode-${mode}`).checked = true;
+    document.querySelectorAll('.tool-icon').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    penAnchors = []; penPreview = null; redrawAll();
+    // Show shape sub-options only in shape mode
+    document.getElementById('shape-opts').style.display = mode === 'shape' ? 'flex' : 'none';
+  });
+});
 
 // ─── SNAP ────────────────────────────────────────────────────────────────────
 function snapPos(x, y) {
