@@ -152,6 +152,7 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   <button class="act-btn" id="btn-export-glb" style="border-color:#a0e0a0;color:#a0e0a0;">GLB</button>
   <button class="act-btn" id="btn-export-stl" style="border-color:#a0e0a0;color:#a0e0a0;">STL</button>
   <button class="act-btn" id="btn-dither" style="border-color:#88aaff;color:#88aaff;">Dither</button>
+  <button class="act-btn" id="btn-help" title="Shortcuts" style="border-color:#888;color:#888;">?</button>
   <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="ref-img-toggle"/> Ref Image
     <input type="file" id="ref-img-input" accept="image/*" style="display:none"/>
@@ -502,6 +503,7 @@ function redrawAll() {
     }
   }
   drawPenOverlay();
+  if (typeof saveDraft === 'function') saveDraft();
 }
 
 function getPos(e, forceSnap) {
@@ -1982,10 +1984,70 @@ function onResize() {
 }
 window.addEventListener('resize', onResize);
 
+// ─── LOCALSTORAGE DRAFT ───────────────────────────────────────────────────────
+const LS_KEY = 'inkit_draft_v1';
+function saveDraft() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(strokes)); } catch(e) {}
+}
+function loadDraft() {
+  try {
+    const d = localStorage.getItem(LS_KEY);
+    if (d) { strokes = JSON.parse(d); redrawAll(); }
+  } catch(e) {}
+}
+
+// Clear also clears draft
+document.getElementById('btn-clear').addEventListener('click', () => {
+  localStorage.removeItem(LS_KEY);
+}, true); // capture = true so runs before the existing listener
+
+// ─── SHORTCUTS MODAL ─────────────────────────────────────────────────────────
+const helpModal = document.getElementById('help-modal');
+function showHelp() { helpModal.style.display = 'flex'; }
+function hideHelp() { helpModal.style.display = 'none'; }
+document.getElementById('btn-help').addEventListener('click', showHelp);
+document.getElementById('help-close').addEventListener('click', hideHelp);
+helpModal.addEventListener('click', e => { if (e.target === helpModal) hideHelp(); });
+document.addEventListener('keydown', e => { if (e.key === '?') showHelp(); });
+
+// ─── TOOL HOTKEYS ─────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const map = { b:'brush', p:'pen', e:'eraser', s:'shape' };
+  const mode = map[e.key.toLowerCase()];
+  if (mode) {
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    const tb = document.querySelector(`.tool-btn[data-tool="${mode}"]`);
+    if (tb) { tb.classList.add('active'); tb.click(); }
+  }
+});
+
 // Init
 requestAnimationFrame(() => {
   onResize();
+  loadDraft();
 });
 </script>
+
+<!-- Shortcuts modal -->
+<div id="help-modal" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;">
+  <div style="background:var(--header-bg);border:1px solid var(--border);border-radius:10px;padding:24px 28px;min-width:280px;max-width:360px;color:var(--fg);font-size:13px;line-height:1.9;position:relative;">
+    <button id="help-close" style="position:absolute;top:10px;right:14px;background:none;border:none;color:var(--fg);font-size:18px;cursor:pointer;opacity:0.6;">✕</button>
+    <div style="font-weight:600;font-size:15px;margin-bottom:12px;">Shortcuts</div>
+    <table style="border-collapse:collapse;width:100%;">
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">Ctrl/⌘ Z</td><td>Undo last stroke</td></tr>
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">Enter</td><td>Commit pen path</td></tr>
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">Esc</td><td>Cancel pen / shape</td></tr>
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">B</td><td>Brush tool</td></tr>
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">P</td><td>Pen tool</td></tr>
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">E</td><td>Eraser tool</td></tr>
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">S</td><td>Shape tool</td></tr>
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">Pen drag</td><td>Drag anchor = bezier handles</td></tr>
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">Pen ↕ drag</td><td>Orange circle = stroke width</td></tr>
+      <tr><td style="color:var(--accent);padding-right:16px;white-space:nowrap;">?</td><td>This card</td></tr>
+    </table>
+    <div style="margin-top:14px;opacity:0.5;font-size:11px;">Draft auto-saved to browser · Clear resets draft</div>
+  </div>
+</div>
 </body>
 </html>
