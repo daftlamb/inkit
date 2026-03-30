@@ -598,6 +598,13 @@ function doErase(e) {
   const next = [];
   let changed = false;
   for (const s of strokes) {
+    // For shape strokes: remove entire stroke if any point is within radius
+    if (s.noTurbulence) {
+      const hit = s.pts.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) <= bs);
+      if (hit) { changed = true; continue; }
+      next.push(s);
+      continue;
+    }
     let seg = [];
     for (const p of s.pts) {
       if (Math.hypot(p.x - pos.x, p.y - pos.y) > bs) {
