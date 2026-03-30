@@ -26,11 +26,6 @@ body{background:var(--bg);color:var(--fg);font-family:'Outfit',sans-serif;height
 #topbar h1{font-size:14px;color:var(--accent);letter-spacing:2px;margin-right:6px;font-weight:500;}
 .btn-icon{background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;height:30px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:14px;padding:0 10px;transition:all .15s;}
 .btn-icon:hover{border-color:var(--accent);color:var(--accent);}
-.tool-icon{background:none;border:1px solid transparent;color:var(--muted);border-radius:5px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0;position:relative;}
-.tool-icon svg{width:18px;height:18px;}
-.tool-icon:hover{border-color:var(--border);color:var(--fg);}
-.tool-icon.active{background:var(--surface);border-color:var(--accent);color:var(--accent);}
-.tool-icon[title]:hover::after{content:attr(title);position:absolute;left:calc(100% + 6px);top:50%;transform:translateY(-50%);background:var(--surface);border:1px solid var(--border);color:var(--fg);font-size:10px;padding:2px 6px;border-radius:3px;white-space:nowrap;pointer-events:none;font-family:'Outfit',sans-serif;z-index:99;}
 .sym-btn{
   background:transparent;border:1px solid var(--border);color:var(--muted);
   padding:4px 10px;font-size:11px;cursor:pointer;border-radius:2px;font-family:'Outfit',sans-serif;
@@ -62,7 +57,6 @@ body{background:var(--bg);color:var(--fg);font-family:'Outfit',sans-serif;height
 #left{
   width:50%;display:flex;flex-direction:column;
   border-right:1px solid var(--border);
-  position:relative;
 }
 #draw-canvas{flex:1;cursor:crosshair;display:block;background:var(--canvas-bg);}
 #controls{
@@ -75,25 +69,19 @@ body{background:var(--bg);color:var(--fg);font-family:'Outfit',sans-serif;height
 input[type=range]{width:80px;accent-color:var(--accent);cursor:pointer;}
 input[type=color]{width:26px;height:20px;border:1px solid var(--border);background:none;cursor:pointer;padding:0;border-radius:2px;}
 #right{width:50%;position:relative;}
-#three-canvas{display:block;width:100%;height:100%;touch-action:none;}
+#three-canvas{display:block;width:100%;height:100%;}
 #mat-panel{
   position:absolute;top:12px;right:12px;
   display:flex;gap:6px;padding:6px;align-items:center;
   background:rgba(250,250,250,0.9);border:1px solid var(--border);border-radius:3px;
-  backdrop-filter:blur(4px);pointer-events:auto;z-index:10;
+  backdrop-filter:blur(4px);
 }
 [data-theme="dark"] #mat-panel{background:rgba(26,26,26,0.88);}
-#tool-bar{
-  position:absolute;left:8px;top:8px;
-  display:flex;flex-direction:column;gap:2px;align-items:center;
-  background:var(--header-bg,#0e0e0e);border:1px solid var(--border,#2a2a2a);
-  border-radius:6px;padding:6px 4px;z-index:20;
-}
 #light-panel{
-  position:absolute;bottom:12px;right:12px;
+  position:absolute;bottom:16px;right:12px;
   display:flex;flex-direction:column;gap:5px;padding:8px 10px;
   background:rgba(250,250,250,0.9);border:1px solid var(--border);border-radius:3px;
-  backdrop-filter:blur(4px);min-width:140px;z-index:10;pointer-events:auto;
+  backdrop-filter:blur(4px);min-width:140px;
 }
 [data-theme="dark"] #light-panel{background:rgba(26,26,26,0.88);}
 #hint{
@@ -164,11 +152,25 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
     <input type="radio" name="render-mode" id="rmode-extrude"/> Extrude
   </label>
   <div class="sep"></div>
-  <!-- Hidden radios for mode state -->
-  <input type="radio" name="draw-mode" id="mode-brush" checked style="display:none"/>
-  <input type="radio" name="draw-mode" id="mode-pen" style="display:none"/>
-  <input type="radio" name="draw-mode" id="mode-eraser" style="display:none"/>
-  <input type="radio" name="draw-mode" id="mode-shape" style="display:none"/>
+  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="draw-mode" id="mode-brush" checked/> Brush
+  </label>
+  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="draw-mode" id="mode-pen"/> Pen
+  </label>
+  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="draw-mode" id="mode-eraser"/> Eraser
+  </label>
+  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="draw-mode" id="mode-shape"/> Shape
+  </label>
+  <select id="shape-type" style="font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:2px 4px;cursor:pointer;">
+    <option value="circle">Circle</option>
+    <option value="rect">Rect</option>
+    <option value="poly">Poly</option>
+    <option value="star">Star</option>
+  </select>
+  <input type="number" id="shape-sides" value="6" min="3" max="24" title="Sides" style="width:36px;font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:1px 4px;"/>
   <div class="sep"></div>
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
     <input type="checkbox" id="bloom-toggle"/> Bloom
@@ -185,52 +187,8 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   <input type="checkbox" id="bright-toggle" style="display:none"/>
 </div>
 
-<div id="main" style="position:relative;">
+<div id="main">
   <div id="left">
-    <div id="tool-bar">
-      <button class="tool-icon active" data-mode="brush" title="Brush">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16c1-1 2-3 4-4l6-6a1.5 1.5 0 00-2-2L6 10c-1 2-3 3-4 4 0 1 1 2 2 2z"/><circle cx="15" cy="5" r="1" fill="currentColor" stroke="none"/></svg>
-      </button>
-      <button class="tool-icon" data-mode="pen" title="Pen">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 3l4 4-9 9H4v-4l9-9z"/><path d="M11 5l4 4"/></svg>
-      </button>
-      <button class="tool-icon" data-mode="eraser" title="Eraser">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 17h14"/><path d="M5 13L11 4l5 5-6 9z"/></svg>
-      </button>
-      <div style="width:20px;height:1px;background:var(--border,#333);margin:2px 0;"></div>
-      <button class="tool-icon" id="shape-tool-btn" data-mode="shape" title="Shape (hold to change)">
-        <svg id="shape-tool-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="12" height="12" rx="1"/></svg>
-      </button>
-      <!-- hidden inputs still needed for JS -->
-      <select id="shape-type" style="display:none">
-        <option value="circle">circle</option>
-        <option value="rect" selected>rect</option>
-        <option value="poly">poly</option>
-        <option value="star">star</option>
-      </select>
-      <input type="number" id="shape-sides" value="6" min="3" max="24" style="display:none"/>
-      <!-- Shape popup (shown on long-press, positioned by JS) -->
-      <div id="shape-popup" style="display:none;position:fixed;background:var(--header-bg,#0e0e0e);border:1px solid var(--border,#2a2a2a);border-radius:8px;padding:8px;gap:6px;flex-direction:column;z-index:100;align-items:center;">
-        <div style="display:flex;gap:4px;align-items:center;">
-          <button class="shape-pick" data-shape="circle" title="Circle" style="background:none;border:1px solid transparent;color:var(--muted);border-radius:4px;width:32px;height:32px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;">
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/></svg>
-          </button>
-          <button class="shape-pick" data-shape="rect" title="Rect" style="background:none;border:1px solid transparent;color:var(--muted);border-radius:4px;width:32px;height:32px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;">
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="1"/></svg>
-          </button>
-          <button class="shape-pick" data-shape="poly" title="Polygon" style="background:none;border:1px solid transparent;color:var(--muted);border-radius:4px;width:32px;height:32px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;">
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="10,2 17,6 17,14 10,18 3,14 3,6"/></svg>
-          </button>
-          <button class="shape-pick" data-shape="star" title="Star" style="background:none;border:1px solid transparent;color:var(--muted);border-radius:4px;width:32px;height:32px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;">
-            <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="10,2 12,8 18,8 13,12 15,18 10,14 5,18 7,12 2,8 8,8"/></svg>
-          </button>
-          <button id="shape-popup-close" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 4px;margin-left:2px;line-height:1;">✕</button>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);">
-          Sides <input type="number" id="shape-sides-popup" value="6" min="3" max="24" style="width:36px;font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:1px 4px;text-align:center;"/>
-        </div>
-      </div>
-    </div>
     <canvas id="draw-canvas"></canvas>
     <div id="controls">
       <div class="ctrl">
@@ -259,7 +217,7 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
       </div>
     </div>
   </div>
-  <div id="right">
+  <div id="right" style="position:relative;">
     <canvas id="three-canvas"></canvas>
     <canvas id="dither-canvas" style="position:absolute;top:0;left:0;pointer-events:none;display:none;"></canvas>
     <div id="dither-bar" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:var(--surface,#1a1a1a);border:1px solid var(--border,#333);border-radius:6px;padding:6px 10px;display:none;align-items:center;gap:8px;font-size:11px;color:var(--fg,#ccc);font-family:'Outfit',sans-serif;z-index:10;">
@@ -604,7 +562,7 @@ function doErase(e) {
         seg.push(p);
       } else {
         changed = true;
-        if (seg.length > 1) next.push({ ...s, pts: seg, noTurbulence: false });
+        if (seg.length > 1) next.push({ ...s, pts: seg });
         seg = [];
       }
     }
@@ -632,6 +590,7 @@ function endErase(e) {
 
 drawCanvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') return; // handled by touch events
+  drawCanvas.setPointerCapture(e.pointerId);
   if (drawMode === 'shape') { shapeOrigin = getPos(e); }
   else if (drawMode === 'pen') penDown(e);
   else if (drawMode === 'eraser') startErase(e);
@@ -869,22 +828,6 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 1.5;
-controls.zoomSpeed = 0.3;
-controls.screenSpacePanning = true;
-
-// Clamp wheel delta — Magic Mouse sends huge values that blow up OrbitControls zoom
-threeCanvas.addEventListener('wheel', e => {
-  if (Math.abs(e.deltaY) > 50) {
-    e.stopImmediatePropagation();
-    const clamped = new WheelEvent('wheel', {
-      ...e,
-      deltaY: Math.sign(e.deltaY) * 50,
-      deltaMode: e.deltaMode,
-      bubbles: true, cancelable: true
-    });
-    threeCanvas.dispatchEvent(clamped);
-  }
-}, { capture: true, passive: false });
 
 // Environment
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -1331,78 +1274,10 @@ document.getElementById('btn-undo').addEventListener('click', () => {
   if (strokes.length > 0) { strokes.pop(); redrawAll(); if (sculpture) build3D(); }
 });
 
-// Tool icon bar
-const SHAPE_ICONS = {
-  circle: '<circle cx="10" cy="10" r="7"/>',
-  rect:   '<rect x="3" y="3" width="14" height="14" rx="1"/>',
-  poly:   '<polygon points="10,2 17,6 17,14 10,18 3,14 3,6"/>',
-  star:   '<polygon points="10,2 12,8 18,8 13,12 15,18 10,14 5,18 7,12 2,8 8,8"/>'
-};
-
-function updateShapeIcon() {
-  const t = document.getElementById('shape-type').value;
-  document.getElementById('shape-tool-icon').innerHTML = SHAPE_ICONS[t];
-}
-
-function setActiveTool(btn) {
-  document.querySelectorAll('.tool-icon').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
-
-// Regular tool buttons (brush/pen/eraser)
-document.querySelectorAll('.tool-icon:not(#shape-tool-btn)').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const mode = btn.dataset.mode;
-    drawMode = mode;
-    document.getElementById(`mode-${mode}`).checked = true;
-    setActiveTool(btn);
-    penAnchors = []; penPreview = null; redrawAll();
-    document.getElementById('shape-popup').style.display = 'none';
-  });
-});
-
-// Shape button: click = toggle popup + activate shape mode
-const shapBtn = document.getElementById('shape-tool-btn');
-const shapePopup = document.getElementById('shape-popup');
-
-function showShapePopup() {
-  const rect = drawCanvas.getBoundingClientRect();
-  shapePopup.style.display = 'flex';
-  shapePopup.style.left = (rect.left + rect.width/2 - 90) + 'px';
-  shapePopup.style.top  = (rect.top + 12) + 'px';
-}
-
-shapBtn.addEventListener('click', () => {
-  drawMode = 'shape';
-  document.getElementById('mode-shape').checked = true;
-  setActiveTool(shapBtn);
-  penAnchors = []; penPreview = null; redrawAll();
-  if (shapePopup.style.display === 'flex') {
-    shapePopup.style.display = 'none';
-  } else {
-    showShapePopup();
-  }
-});
-
-document.getElementById('shape-popup-close').addEventListener('click', () => {
-  shapePopup.style.display = 'none';
-});
-
-// Shape picker in popup
-document.querySelectorAll('.shape-pick').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.getElementById('shape-type').value = btn.dataset.shape;
-    document.getElementById('shape-sides').value = document.getElementById('shape-sides-popup').value;
-    updateShapeIcon();
-    shapePopup.style.display = 'none';
-    drawMode = 'shape';
-    document.getElementById('mode-shape').checked = true;
-    setActiveTool(shapBtn);
-  });
-});
-document.getElementById('shape-sides-popup').addEventListener('input', e => {
-  document.getElementById('shape-sides').value = e.target.value;
-});
+document.getElementById('mode-brush').addEventListener('change', () => { drawMode = 'brush'; penAnchors = []; penPreview = null; redrawAll(); });
+document.getElementById('mode-pen').addEventListener('change', () => { drawMode = 'pen'; });
+document.getElementById('mode-shape').addEventListener('change', () => { drawMode = 'shape'; penAnchors = []; penPreview = null; redrawAll(); });
+document.getElementById('mode-eraser').addEventListener('change', () => { drawMode = 'eraser'; penAnchors = []; penPreview = null; redrawAll(); });
 
 // ─── SNAP ────────────────────────────────────────────────────────────────────
 function snapPos(x, y) {
