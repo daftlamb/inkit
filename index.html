@@ -632,7 +632,6 @@ function endErase(e) {
 
 drawCanvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') return; // handled by touch events
-  drawCanvas.setPointerCapture(e.pointerId);
   if (drawMode === 'shape') { shapeOrigin = getPos(e); }
   else if (drawMode === 'pen') penDown(e);
   else if (drawMode === 'eraser') startErase(e);
