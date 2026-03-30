@@ -84,7 +84,7 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
 }
 [data-theme="dark"] #mat-panel{background:rgba(26,26,26,0.88);}
 #tool-bar{
-  position:absolute;left:8px;top:50%;transform:translateY(-50%);
+  position:absolute;left:8px;top:8px;
   display:flex;flex-direction:column;gap:2px;align-items:center;
   background:var(--header-bg,#0e0e0e);border:1px solid var(--border,#2a2a2a);
   border-radius:6px;padding:6px 4px;z-index:20;
@@ -588,7 +588,7 @@ function doErase(e) {
         seg.push(p);
       } else {
         changed = true;
-        if (seg.length > 1) next.push({ ...s, pts: seg });
+        if (seg.length > 1) next.push({ ...s, pts: seg, noTurbulence: false });
         seg = [];
       }
     }
@@ -624,7 +624,7 @@ function doScissor(e) {
       if (d < bestDist) { bestDist = d; bestStroke = si; bestPt = pi; }
     });
   });
-  if (bestStroke < 0 || bestDist > 30) return;
+  if (bestStroke < 0 || bestDist > 100) return;
   const s = strokes[bestStroke];
   const i = bestPt;
 
@@ -891,6 +891,9 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 1.5;
+controls.minDistance = 0.5;
+controls.maxDistance = 20;
+controls.enablePan = false;
 
 // Environment
 const pmrem = new THREE.PMREMGenerator(renderer);
