@@ -168,7 +168,6 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   <input type="radio" name="draw-mode" id="mode-brush" checked style="display:none"/>
   <input type="radio" name="draw-mode" id="mode-pen" style="display:none"/>
   <input type="radio" name="draw-mode" id="mode-eraser" style="display:none"/>
-  <input type="radio" name="draw-mode" id="mode-scissor" style="display:none"/>
   <input type="radio" name="draw-mode" id="mode-shape" style="display:none"/>
   <div class="sep"></div>
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
@@ -198,21 +197,29 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
       <button class="tool-icon" data-mode="eraser" title="Eraser">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 17h14"/><path d="M5 13L11 4l5 5-6 9z"/></svg>
       </button>
-      <button class="tool-icon" data-mode="scissor" title="Scissor">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="14" r="2"/><line x1="8" y1="7" x2="17" y2="3"/><line x1="8" y1="13" x2="17" y2="17"/><line x1="10" y1="10" x2="17" y2="10" stroke-dasharray="2 2"/></svg>
-      </button>
       <div style="width:20px;height:1px;background:var(--border,#333);margin:2px 0;"></div>
-      <button class="tool-icon" data-mode="shape" title="Shape">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="10,3 17,7 17,13 10,17 3,13 3,7"/></svg>
+      <button class="tool-icon" id="shape-tool-btn" data-mode="shape" title="Shape (hold to change)">
+        <svg id="shape-tool-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="12" height="12" rx="1"/></svg>
       </button>
-      <div id="shape-opts" style="display:none;flex-direction:column;gap:4px;align-items:stretch;padding-top:4px;border-top:1px solid var(--border,#333);margin-top:2px;">
-        <select id="shape-type" style="font-size:10px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:2px 3px;cursor:pointer;width:42px;">
-          <option value="circle">○</option>
-          <option value="rect">□</option>
-          <option value="poly">⬡</option>
-          <option value="star">★</option>
-        </select>
-        <input type="number" id="shape-sides" value="6" min="3" max="24" title="Sides" style="width:42px;font-size:10px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:1px 4px;text-align:center;"/>
+      <!-- hidden inputs still needed for JS -->
+      <select id="shape-type" style="display:none">
+        <option value="circle">circle</option>
+        <option value="rect" selected>rect</option>
+        <option value="poly">poly</option>
+        <option value="star">star</option>
+      </select>
+      <input type="number" id="shape-sides" value="6" min="3" max="24" style="display:none"/>
+      <!-- Shape popup (shown on long-press, positioned by JS) -->
+      <div id="shape-popup" style="display:none;position:fixed;background:var(--header-bg,#0e0e0e);border:1px solid var(--border,#2a2a2a);border-radius:8px;padding:8px;gap:6px;flex-direction:column;z-index:100;align-items:center;">
+        <div style="display:flex;gap:6px;">
+          <button class="shape-pick" data-shape="circle" title="Circle" style="background:none;border:1px solid transparent;color:var(--muted);border-radius:4px;width:32px;height:32px;cursor:pointer;font-size:16px;">○</button>
+          <button class="shape-pick" data-shape="rect" title="Rect" style="background:none;border:1px solid transparent;color:var(--muted);border-radius:4px;width:32px;height:32px;cursor:pointer;font-size:16px;">□</button>
+          <button class="shape-pick" data-shape="poly" title="Polygon" style="background:none;border:1px solid transparent;color:var(--muted);border-radius:4px;width:32px;height:32px;cursor:pointer;font-size:16px;">⬡</button>
+          <button class="shape-pick" data-shape="star" title="Star" style="background:none;border:1px solid transparent;color:var(--muted);border-radius:4px;width:32px;height:32px;cursor:pointer;font-size:16px;">★</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);">
+          Sides <input type="number" id="shape-sides-popup" value="6" min="3" max="24" style="width:36px;font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:1px 4px;text-align:center;"/>
+        </div>
       </div>
     </div>
     <canvas id="draw-canvas"></canvas>
@@ -614,49 +621,12 @@ function endErase(e) {
   autoGenTimer = setTimeout(build3D, 600);
 }
 
-// ─── SCISSOR ─────────────────────────────────────────────────────────────────
-function doScissor(e) {
-  const pos = getPos(e);
-  let bestStroke = -1, bestPt = -1, bestDist = Infinity;
-  strokes.forEach((s, si) => {
-    s.pts.forEach((p, pi) => {
-      const d = Math.hypot(p.x - pos.x, p.y - pos.y);
-      if (d < bestDist) { bestDist = d; bestStroke = si; bestPt = pi; }
-    });
-  });
-  if (bestStroke < 0 || bestDist > 100) return;
-  const s = strokes[bestStroke];
-  const i = bestPt;
-
-  // For closed shapes (noTurbulence): rotate array so cut point is at seam,
-  // then output as single open stroke — no gap at old start/end
-  if (s.noTurbulence) {
-    const pts = s.pts;
-    const rotated = [...pts.slice(i), ...pts.slice(0, i + 1)];
-    const newStrokes = [...strokes];
-    newStrokes.splice(bestStroke, 1, { ...s, pts: rotated, noTurbulence: false });
-    strokes = newStrokes;
-  } else {
-    const segA = s.pts.slice(0, i + 1);
-    const segB = s.pts.slice(i);
-    const newStrokes = [...strokes];
-    newStrokes.splice(bestStroke, 1);
-    if (segA.length > 1) newStrokes.splice(bestStroke, 0, { ...s, pts: segA });
-    if (segB.length > 1) newStrokes.splice(bestStroke + (segA.length > 1 ? 1 : 0), 0, { ...s, pts: segB });
-    strokes = newStrokes;
-  }
-  redrawAll();
-  clearTimeout(autoGenTimer);
-  autoGenTimer = setTimeout(build3D, 400);
-}
-
 drawCanvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') return; // handled by touch events
   drawCanvas.setPointerCapture(e.pointerId);
   if (drawMode === 'shape') { shapeOrigin = getPos(e); }
   else if (drawMode === 'pen') penDown(e);
   else if (drawMode === 'eraser') startErase(e);
-  else if (drawMode === 'scissor') { doScissor(e); }
   else startDraw(e);
 });
 drawCanvas.addEventListener('pointermove', e => {
@@ -891,9 +861,8 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 1.5;
-controls.minDistance = 0.5;
-controls.maxDistance = 20;
 controls.enablePan = false;
+controls.zoomSpeed = 0.5;
 
 // Environment
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -1341,18 +1310,85 @@ document.getElementById('btn-undo').addEventListener('click', () => {
 });
 
 // Tool icon bar
-document.querySelectorAll('.tool-icon').forEach(btn => {
+const SHAPE_ICONS = {
+  circle: '<circle cx="10" cy="10" r="7"/>',
+  rect:   '<rect x="3" y="3" width="14" height="14" rx="1"/>',
+  poly:   '<polygon points="10,2 17,6 17,14 10,18 3,14 3,6"/>',
+  star:   '<polygon points="10,2 12,8 18,8 13,12 15,18 10,14 5,18 7,12 2,8 8,8"/>'
+};
+
+function updateShapeIcon() {
+  const t = document.getElementById('shape-type').value;
+  document.getElementById('shape-tool-icon').innerHTML = SHAPE_ICONS[t];
+}
+
+function setActiveTool(btn) {
+  document.querySelectorAll('.tool-icon').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// Regular tool buttons (brush/pen/eraser)
+document.querySelectorAll('.tool-icon:not(#shape-tool-btn)').forEach(btn => {
   btn.addEventListener('click', () => {
     const mode = btn.dataset.mode;
     drawMode = mode;
     document.getElementById(`mode-${mode}`).checked = true;
-    document.querySelectorAll('.tool-icon').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    setActiveTool(btn);
     penAnchors = []; penPreview = null; redrawAll();
-    // Show shape sub-options only in shape mode
-    document.getElementById('shape-opts').style.display = mode === 'shape' ? 'flex' : 'none';
+    document.getElementById('shape-popup').style.display = 'none';
   });
 });
+
+// Shape button: click = activate shape mode, long-press = show popup
+let _shapePressTimer = null;
+const shapBtn = document.getElementById('shape-tool-btn');
+shapBtn.addEventListener('pointerdown', () => {
+  _shapePressTimer = setTimeout(() => {
+    _shapePressTimer = null;
+    // Show popup centered at top of draw canvas
+    const rect = drawCanvas.getBoundingClientRect();
+    const popup = document.getElementById('shape-popup');
+    popup.style.display = 'flex';
+    popup.style.left = (rect.left + rect.width/2 - 90) + 'px';
+    popup.style.top  = (rect.top + 12) + 'px';
+  }, 350);
+});
+shapBtn.addEventListener('pointerup', () => {
+  if (_shapePressTimer) {
+    clearTimeout(_shapePressTimer);
+    _shapePressTimer = null;
+    // Short click: just switch to shape mode
+    drawMode = 'shape';
+    document.getElementById('mode-shape').checked = true;
+    setActiveTool(shapBtn);
+    penAnchors = []; penPreview = null; redrawAll();
+  }
+});
+shapBtn.addEventListener('pointerleave', () => {
+  if (_shapePressTimer) { clearTimeout(_shapePressTimer); _shapePressTimer = null; }
+});
+
+// Shape picker in popup
+document.querySelectorAll('.shape-pick').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('shape-type').value = btn.dataset.shape;
+    document.getElementById('shape-sides').value = document.getElementById('shape-sides-popup').value;
+    updateShapeIcon();
+    document.getElementById('shape-popup').style.display = 'none';
+    drawMode = 'shape';
+    document.getElementById('mode-shape').checked = true;
+    setActiveTool(shapBtn);
+  });
+});
+document.getElementById('shape-sides-popup').addEventListener('input', e => {
+  document.getElementById('shape-sides').value = e.target.value;
+});
+
+// Close popup on outside click
+document.addEventListener('click', e => {
+  const popup = document.getElementById('shape-popup');
+  if (!popup.contains(e.target) && e.target !== shapBtn) popup.style.display = 'none';
+}, true);
 
 // ─── SNAP ────────────────────────────────────────────────────────────────────
 function snapPos(x, y) {
