@@ -161,6 +161,9 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
     <input type="radio" name="draw-mode" id="mode-shape"/> Shape
   </label>
+  <label style="font-size:11px;color:#888;font-family:'Outfit',sans-serif;display:flex;align-items:center;gap:4px;">
+    <input type="radio" name="draw-mode" id="mode-eraser"/> Eraser
+  </label>
   <select id="shape-type" style="font-size:11px;font-family:'Outfit',sans-serif;background:var(--surface,#1a1a1a);color:var(--fg,#ccc);border:1px solid var(--border,#444);border-radius:2px;padding:2px 4px;cursor:pointer;">
     <option value="circle">Circle</option>
     <option value="rect">Rect</option>
@@ -510,9 +513,12 @@ function moveDraw(e) {
 
   // Normal movement — stop pooling, width follows speed (fast=very thin)
   clearTimeout(poolTimer);
-  const minW = bs * 0.15; // very thin when fast
+  const minW = bs * 0.15;
   const targetW = Math.max(minW, bs * (1.5 - Math.min(speed * 0.4, 1.3)));
-  poolW = bs * 0.5 + targetW * 0.5;
+  // Wacom pressure: e.pressure is 0.5 for mouse, varies for stylus
+  const pressure = (e.pressure !== undefined && e.pressure > 0) ? e.pressure : 0.5;
+  const pressureScale = e.pointerType === 'pen' ? pressure * 2 : 1;
+  poolW = (bs * 0.5 + targetW * 0.5) * pressureScale;
 
   currentStroke.push({ x: pos.x, y: pos.y, w: poolW });
   lastX = pos.x; lastY = pos.y; lastT = now;
@@ -539,12 +545,48 @@ function endDraw(e) {
   }
 }
 
-drawCanvas.addEventListener('mousedown', e => {
+// ─── ERASER ──────────────────────────────────────────────────────────────────
+let isErasing = false;
+function startErase(e) { isErasing = true; doErase(e); }
+function doErase(e) {
+  if (!isErasing) return;
+  const pos = getPos(e);
+  const bs = parseFloat(document.getElementById('brush-size').value) * 2;
+  // Remove points from strokes within eraser radius
+  let changed = false;
+  strokes = strokes.map(s => {
+    const pts = s.pts.filter(p => Math.hypot(p.x - pos.x, p.y - pos.y) > bs);
+    if (pts.length !== s.pts.length) changed = true;
+    return { ...s, pts };
+  }).filter(s => s.pts.length > 1);
+  if (changed) {
+    redrawAll();
+    // Draw eraser circle cursor
+    dc.save();
+    dc.strokeStyle = isBright ? '#aaa' : '#555';
+    dc.lineWidth = 1; dc.setLineDash([3,3]);
+    dc.beginPath(); dc.arc(pos.x, pos.y, bs, 0, Math.PI*2); dc.stroke();
+    dc.restore();
+  }
+}
+function endErase(e) {
+  if (!isErasing) return;
+  isErasing = false;
+  redrawAll();
+  clearTimeout(autoGenTimer);
+  autoGenTimer = setTimeout(build3D, 600);
+}
+
+drawCanvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch') return; // handled by touch events
+  drawCanvas.setPointerCapture(e.pointerId);
   if (drawMode === 'shape') { shapeOrigin = getPos(e); }
   else if (drawMode === 'pen') penDown(e);
+  else if (drawMode === 'eraser') startErase(e);
   else startDraw(e);
 });
-drawCanvas.addEventListener('mousemove', e => {
+drawCanvas.addEventListener('pointermove', e => {
+  if (e.pointerType === 'touch') return;
   if (drawMode === 'shape') {
     if (!shapeOrigin) return;
     const pos = getPos(e);
@@ -560,9 +602,11 @@ drawCanvas.addEventListener('mousemove', e => {
       dc.stroke(); dc.restore();
     }
   } else if (drawMode === 'pen') penMove(e);
+  else if (drawMode === 'eraser') doErase(e);
   else moveDraw(e);
 });
-drawCanvas.addEventListener('mouseup', e => {
+drawCanvas.addEventListener('pointerup', e => {
+  if (e.pointerType === 'touch') return;
   if (drawMode === 'shape') {
     if (!shapeOrigin) return;
     const pos = getPos(e);
@@ -573,9 +617,13 @@ drawCanvas.addEventListener('mouseup', e => {
     }
     shapeOrigin = null;
   } else if (drawMode === 'pen') penUp(e);
+  else if (drawMode === 'eraser') endErase(e);
   else endDraw(e);
 });
-drawCanvas.addEventListener('mouseleave', e => { if (drawMode !== 'pen' && drawMode !== 'shape') endDraw(e); });
+drawCanvas.addEventListener('pointerleave', e => {
+  if (e.pointerType === 'touch') return;
+  if (drawMode !== 'pen' && drawMode !== 'shape') endDraw(e);
+});
 drawCanvas.addEventListener('dblclick',  e => { if (drawMode === 'pen') penCommit(); });
 drawCanvas.addEventListener('touchstart', e => { if (drawMode==='pen') penDown(e); else if (drawMode!=='shape') startDraw(e); }, { passive: false });
 drawCanvas.addEventListener('touchmove',  e => { if (drawMode==='pen') penMove(e); else if (drawMode!=='shape') moveDraw(e); }, { passive: false });
@@ -1218,6 +1266,7 @@ document.getElementById('btn-undo').addEventListener('click', () => {
 document.getElementById('mode-brush').addEventListener('change', () => { drawMode = 'brush'; penAnchors = []; penPreview = null; redrawAll(); });
 document.getElementById('mode-pen').addEventListener('change', () => { drawMode = 'pen'; });
 document.getElementById('mode-shape').addEventListener('change', () => { drawMode = 'shape'; penAnchors = []; penPreview = null; redrawAll(); });
+document.getElementById('mode-eraser').addEventListener('change', () => { drawMode = 'eraser'; penAnchors = []; penPreview = null; redrawAll(); });
 
 // ─── SNAP ────────────────────────────────────────────────────────────────────
 function snapPos(x, y) {
