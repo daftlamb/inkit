@@ -26,6 +26,8 @@ body{background:var(--bg);color:var(--fg);font-family:'Outfit',sans-serif;height
 #topbar h1{font-size:14px;color:var(--accent);letter-spacing:2px;margin-right:6px;font-weight:500;}
 .btn-icon{background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;height:30px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:14px;padding:0 10px;transition:all .15s;}
 .btn-icon:hover{border-color:var(--accent);color:var(--accent);}
+.btn-support{border-color:#e07820;color:#e07820;}
+.btn-support:hover{border-color:#c96512;color:#c96512;}
 .tool-icon{background:none;border:1px solid transparent;color:var(--muted);border-radius:5px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0;position:relative;}
 .tool-icon svg{width:18px;height:18px;}
 .tool-icon:hover{border-color:var(--border);color:var(--fg);}
@@ -129,9 +131,21 @@ input[type=color]{width:26px;height:20px;border:1px solid var(--border);backgrou
   </div>
 </div>
 
+<div class="modal-overlay" id="support-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="support-close">x</button>
+    <h2>Support Ink It</h2>
+    <p>If Ink It helps your drawing and 3D experiments, you can support future updates here.</p>
+    <p style="margin-top:12px;">Sketch on the left, refresh the 3D form on the right, and export PNG, GLB, or STL when you land on something good.</p>
+    <img src="assets/support-qr.png" alt="Support QR code" style="display:block;width:min(240px,100%);aspect-ratio:1;object-fit:cover;margin:16px auto 12px;border:1px solid var(--border);border-radius:8px;background:#fff;"/>
+    <p style="text-align:center;margin-top:4px;">Thank you for supporting more playful tools.</p>
+  </div>
+</div>
+
 <div id="topbar">
   <h1>Ink It ✦</h1>
   <button class="btn-icon" id="btn-theme" title="Toggle dark/light mode">☀</button>
+  <button class="btn-icon btn-support" id="btn-support" title="Support">support</button>
   <button class="btn-icon" id="btn-about" title="About">i</button>
   <div class="sep"></div>
   <div style="display:flex;gap:4px;">
@@ -1583,6 +1597,15 @@ document.getElementById('about-close').addEventListener('click', () => {
   document.getElementById('about-modal').classList.remove('open');
 });
 document.getElementById('about-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+});
+document.getElementById('btn-support').addEventListener('click', () => {
+  document.getElementById('support-modal').classList.add('open');
+});
+document.getElementById('support-close').addEventListener('click', () => {
+  document.getElementById('support-modal').classList.remove('open');
+});
+document.getElementById('support-modal').addEventListener('click', e => {
   if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
 });
 
